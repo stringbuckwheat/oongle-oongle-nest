@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { User } from "../user/entities/user.entity"; // Node.js의 path 모듈 사용
+import { User } from "../user/entities/user.entity";
+import { Board } from "../board/board.entity"; // Node.js의 path 모듈 사용
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { User } from "../user/entities/user.entity"; // Node.js의 path 모듈 �
         username: configService.get("DB_USERNAME"),
         password: configService.get("DB_PASSWORD"),
         database: configService.get("DB_DATABASE"),
-        entities: [User],
+        entities: [User, Board],
         synchronize: true, // 개발 환경에서만 사용 (애플리케이션이 시작될 때 데이터베이스 테이블을 생성 또는 업데이트)
       }),
       inject: [ConfigService],
