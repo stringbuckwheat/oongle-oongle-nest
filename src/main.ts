@@ -14,7 +14,10 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3000);
+  // CORS 설정
+  app.enableCors();
+
+  await app.listen(3030);
 }
 
 bootstrap();
