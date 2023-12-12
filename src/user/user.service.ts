@@ -36,6 +36,15 @@ export class UserService {
     return response;
   }
 
+  // 회원 조회
+  async findByUsername(username: string): Promise<User> {
+    return await this.userRepository.findOne({
+      where: {
+        username
+      }
+    });
+  }
+
   // 회원 정보 확인
 
 
