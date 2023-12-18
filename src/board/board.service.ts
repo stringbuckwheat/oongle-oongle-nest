@@ -3,12 +3,15 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Board } from "./board.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
+import { User } from "../user/entities/user.entity";
 
 @Injectable()
 export class BoardService {
   constructor(
     @InjectRepository(Board)
-    private readonly boardRepository: Repository<Board>
+    private readonly boardRepository: Repository<Board>,
+    @InjectRepository(User)
+    private readonly userRepostiory: Repository<User>
   ) {
   }
 
@@ -24,7 +27,6 @@ export class BoardService {
       }
     });
 
-    // 없으면 어떻게 되는지 보기
     if (!post) {
       throw new NotFoundException("글 없음");
     }
@@ -37,11 +39,29 @@ export class BoardService {
     return { ...postData, password: hashedPassword };
   }
 
-  async create(postData: Partial<Board>): Promise<Board> {
-    // 비밀번호 암호화
-    const encrypt = await this.hashedBoard(postData);
-    const post = this.boardRepository.create(encrypt);
-    return this.boardRepository.save(post);
+  async create(postData): Promise<Board> {
+    // 비회원일 경우
+    if(postData.password){
+      // 비밀번호 암호화
+      const encrypt = await this.hashedBoard(postData);
+      const post = this.boardRepository.create(encrypt);
+      return this.boardRepository.save(post);
+    }
+
+    // 회원일 경우
+    const user = await this.userRepostiory.findOneOrFail({
+      where: {
+        userId: postData.userId
+      }
+    })
+
+    const board = this.boardRepository.create({
+      user,
+      title: postData.title,
+      content: postData.content,
+    });
+
+    return this.boardRepository.save(board);
   }
 
   async update(id: number, postData: Partial<Board>): Promise<Board> {
@@ -52,10 +72,9 @@ export class BoardService {
       throw new UnauthorizedException('비밀번호 불일치');
     }
 
-    // 아직 야매 API라 비번 변경 불가ㅋㅋㅋ
+    // 아직 비번 변경 불가ㅋㅋㅋ
     const encrypt = await this.hashedBoard(postData);
     const updateResult = await this.boardRepository.update(id, encrypt);
-    // console.log("updateResult", updateResult); -- raw, affected... 이런 거 알려줌
 
     return this.findById(id);
   }

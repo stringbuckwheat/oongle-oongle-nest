@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { User } from "../user/entities/user.entity";
 
 @Entity("board")
 export class Board {
@@ -14,13 +15,20 @@ export class Board {
   @Column('text') // DB 컬럼 text 타입
   content: string;
 
-  // ID
-  @Column({length: 50, nullable: false})
-  username: string;
+  // 비회원일 시
+  @Column({length: 50, nullable: true})
+  name: string;
 
-  @Column({length: 100, nullable: false})
+  @Column({length: 100, nullable: true})
   password: string;
 
-  @CreateDateColumn()
+  // 회원일 시 FK
+  @ManyToOne(() => User)
+  user: User;
+
+  @CreateDateColumn() // == @CreatedDate in Spring Data JPA
   createdAt: Date;
+
+  @UpdateDateColumn() // == @LastModifiedDate in Spring Data JPA
+  updatedAt: Date; // updatedAt 컬럼 추가
 }

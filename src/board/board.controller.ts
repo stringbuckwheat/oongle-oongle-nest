@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { BoardService } from "./board.service";
 import { Board } from "./board.entity";
 
@@ -18,9 +18,8 @@ export class BoardController {
   }
 
   @Post()
-  create(@Body() postData): Promise<Board>{
-    console.log("postData", postData);
-    return this.boardService.create(postData);
+  async create(@Body() postData): Promise<number>{
+    return (await this.boardService.create(postData)).boardId;
   }
 
   @Put("/:id")
