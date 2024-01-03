@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { BoardService } from "./board.service";
 import { Board } from "./board.entity";
+import { RecentDto } from "./dto/recent.dto";
 
 @Controller('board')
 export class BoardController {
@@ -8,8 +9,8 @@ export class BoardController {
   }
 
   @Get()
-  getAll(): Promise<Board[]> {
-    return this.boardService.findAll()
+  getAll(): Promise<RecentDto[]> {
+    return this.boardService.findAll();
   }
 
   @Get("/:id")

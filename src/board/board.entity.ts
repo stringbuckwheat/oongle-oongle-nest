@@ -31,4 +31,12 @@ export class Board {
 
   @UpdateDateColumn() // == @LastModifiedDate in Spring Data JPA
   updatedAt: Date; // updatedAt 컬럼 추가
+
+  // 조회수
+  @Column({ default: 0 }) // 기본값 0
+  hits: number;
+
+  // 좋아요
+  @Column({ default: 0 }) // 기본값 0
+  likes: number;
 }
