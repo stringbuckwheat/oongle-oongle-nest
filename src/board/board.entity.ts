@@ -1,5 +1,14 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn
+} from "typeorm";
 import { User } from "../user/entities/user.entity";
+import { Like } from "../like/like.entity";
 
 @Entity("board")
 export class Board {
@@ -37,6 +46,6 @@ export class Board {
   hits: number;
 
   // 좋아요
-  @Column({ default: 0 }) // 기본값 0
-  likes: number;
+  @OneToMany(() => Like, like => like.board)
+  likes: Like[];
 }
