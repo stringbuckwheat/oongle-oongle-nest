@@ -24,6 +24,11 @@ export class BoardController {
     return (await this.boardService.create(postData)).boardId;
   }
 
+  @Post("/:id/verify")
+  async verifyAnonymous(@Body() verifyData): Promise<any> {
+    return await this.boardService.verifyAnonymous(verifyData);
+  }
+
   @Put("/:id")
   update(@Param("id") id: number, @Body() updateData) : Promise<Board> {
     return this.boardService.update(id, updateData);

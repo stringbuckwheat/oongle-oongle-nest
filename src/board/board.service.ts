@@ -13,15 +13,15 @@ export class BoardService {
     @InjectRepository(Board)
     private readonly boardRepository: Repository<Board>,
     @InjectRepository(User)
-    private readonly userRepostiory: Repository<User>,
+    private readonly userRepostiory: Repository<User>
   ) {
   }
 
   async findAll(): Promise<RecentDto[]> {
-    const boards = await this.boardRepository.createQueryBuilder('board')
-      .leftJoinAndSelect('board.user', 'user') // 'user'는 연결된 엔티티의 별칭입니다.
-      .leftJoinAndSelect('board.likes', 'likes')
-      .orderBy('board.createdAt', 'DESC')
+    const boards = await this.boardRepository.createQueryBuilder("board")
+      .leftJoinAndSelect("board.user", "user") // 'user'는 연결된 엔티티의 별칭입니다.
+      .leftJoinAndSelect("board.likes", "likes")
+      .orderBy("board.createdAt", "DESC")
       .take(10)
       .getMany();
 
@@ -34,13 +34,13 @@ export class BoardService {
     return ({
       boardId: board.boardId,
       title: board.title,
-      name: board.name ?? board.user?.name ?? '',
+      name: board.name ?? board.user?.name ?? "",
       memberId: board.name ? null : board.user?.userId ?? null,
       isMember: board.name == null,
       createdAt: this.transformCreateDate(board.createdAt), // 오늘이면 시간, 아니면 날짜
       hits: board.hits,
       likes: board.likes?.length ?? 0
-    })
+    });
   }
 
   private transformCreateDate(date: Date): string {
@@ -48,7 +48,7 @@ export class BoardService {
     const today = now.toISOString().split("T")[0];
 
     // 오늘 날짜면
-    if(date.toISOString().split("T")[0] === today){
+    if (date.toISOString().split("T")[0] === today) {
       // 시:분으로 가공
       return date.toISOString().split("T")[1].substring(0, 5);
     }
@@ -76,7 +76,7 @@ export class BoardService {
       where: {
         boardId: postId
       },
-      relations: ['user', 'likes'] // join
+      relations: ["user", "likes"] // join
     });
 
     // 조회수 업데이트
@@ -86,16 +86,16 @@ export class BoardService {
     return {
       boardId: board.boardId,
       title: board.title,
-      name: board.name ?? board.user?.name ?? '',
+      name: board.name ?? board.user?.name ?? "",
       memberId: board.name ? null : board.user?.userId ?? null,
       isMember: board.name == null,
       createdAt: board.createdAt.toISOString().replace("T", " ").split(".")[0], // 오늘이면 시간, 아니면 날짜
       hits: board.hits,
       likes: board.likes?.length ?? 0,
 
-      content: board.content,
+      content: board.content
       // 이후 댓글 데이터 추가
-    }
+    };
   }
 
   async hashedBoard(postData: Partial<Board>): Promise<Partial<Board>> {
@@ -128,19 +128,33 @@ export class BoardService {
     return this.boardRepository.save(board);
   }
 
-  async update(id: number, postData: Partial<Board>): Promise<Board> {
-    const prevBoard = await this.findById(id);
-    const isPasswordMatch = await bcrypt.compare(postData.password, prevBoard.password);
+  async verifyAnonymous(verifyData): Promise<any> {
+    const prevBoard = await this.findById(verifyData.boardId);
+    const isPasswordMatch = await bcrypt.compare(verifyData.password, prevBoard.password);
 
     if (!isPasswordMatch) {
       throw new UnauthorizedException("비밀번호 불일치");
     }
 
-    // 아직 비번 변경 불가ㅋㅋㅋ
-    const encrypt = await this.hashedBoard(postData);
-    const updateResult = await this.boardRepository.update(id, encrypt);
+    return {boardId: prevBoard.boardId, verify: isPasswordMatch};
+  }
 
-    return this.findById(id);
+  async update(id: number, updateData): Promise<Board> {
+    const board = await this.findById(id);
+
+    if (!board) {
+      throw new Error("글이 존재하지 않습니다.");
+    }
+
+    // 수정된 내용 업데이트
+    // 회원이면 바로 updateData, 아니면 hash 해줘야함
+    if (updateData.password) {
+      updateData = await this.hashedBoard(updateData);
+    }
+
+    Object.assign(board, updateData);
+
+    return await this.boardRepository.save(board);
   }
 
   async delete(id: number): Promise<void> {
