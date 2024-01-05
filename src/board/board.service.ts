@@ -4,7 +4,7 @@ import { Board } from "./board.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "../user/entities/user.entity";
-import { RecentDto } from "./dto/recent.dto";
+import { BoardDto } from "./dto/boardDto";
 import { BoardDetail } from "./dto/detail.dto";
 
 @Injectable()
@@ -17,20 +17,18 @@ export class BoardService {
   ) {
   }
 
-  async findAll(): Promise<RecentDto[]> {
+  async findAll(): Promise<BoardDto[]> {
     const boards = await this.boardRepository.createQueryBuilder("board")
-      .leftJoinAndSelect("board.user", "user") // 'user'는 연결된 엔티티의 별칭입니다.
+      .leftJoinAndSelect("board.user", "user") // user: 연결된 엔티티의 별칭
       .leftJoinAndSelect("board.likes", "likes")
       .orderBy("board.createdAt", "DESC")
       .take(10)
       .getMany();
 
-    const recentDtos = boards.map(board => this.mapBoardToRecentDto(board));
-
-    return recentDtos;
+    return boards.map(board => this.mapBoardToDto(board));
   }
 
-  private mapBoardToRecentDto(board: Board): RecentDto {
+  private mapBoardToDto(board: Board): BoardDto {
     return ({
       boardId: board.boardId,
       title: board.title,
@@ -41,6 +39,19 @@ export class BoardService {
       hits: board.hits,
       likes: board.likes?.length ?? 0
     });
+  }
+
+  async getPopular(): Promise<BoardDto[]> {
+    const populars = await this.boardRepository.createQueryBuilder("board")
+      .leftJoinAndSelect("board.user", "user") // user: 연결된 엔티티의 별칭
+      .leftJoinAndSelect("board.likes", "likes")
+      .addSelect("COUNT(likes.likeId)", "likesCount")
+      .groupBy("board.boardId")
+      .orderBy("likesCount", "DESC")
+      .take(5)
+      .getMany();
+
+    return populars.map(board => this.mapBoardToDto(board));
   }
 
   private transformCreateDate(date: Date): string {
@@ -136,7 +147,7 @@ export class BoardService {
       throw new UnauthorizedException("비밀번호 불일치");
     }
 
-    return {boardId: prevBoard.boardId, verify: isPasswordMatch};
+    return { boardId: prevBoard.boardId, verify: isPasswordMatch };
   }
 
   async update(id: number, updateData): Promise<Board> {

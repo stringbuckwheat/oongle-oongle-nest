@@ -1,17 +1,22 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { BoardService } from "./board.service";
 import { Board } from "./board.entity";
-import { RecentDto } from "./dto/recent.dto";
+import { BoardDto } from "./dto/boardDto";
 import { BoardDetail } from "./dto/detail.dto";
 
-@Controller('board')
+@Controller("board")
 export class BoardController {
   constructor(private readonly boardService: BoardService) {
   }
 
   @Get()
-  getAll(): Promise<RecentDto[]> {
+  getAll(): Promise<BoardDto[]> {
     return this.boardService.findAll();
+  }
+
+  @Get("/popular")
+  getPopular(): Promise<BoardDto[]> {
+    return this.boardService.getPopular();
   }
 
   @Get("/:id")
@@ -20,7 +25,7 @@ export class BoardController {
   }
 
   @Post()
-  async create(@Body() postData): Promise<number>{
+  async create(@Body() postData): Promise<number> {
     return (await this.boardService.create(postData)).boardId;
   }
 
@@ -30,12 +35,12 @@ export class BoardController {
   }
 
   @Put("/:id")
-  update(@Param("id") id: number, @Body() updateData) : Promise<Board> {
+  update(@Param("id") id: number, @Body() updateData): Promise<Board> {
     return this.boardService.update(id, updateData);
   }
 
   @Delete("/:id")
-  remove(@Param("id") id: number){
+  remove(@Param("id") id: number) {
     return this.boardService.delete(id);
   }
 

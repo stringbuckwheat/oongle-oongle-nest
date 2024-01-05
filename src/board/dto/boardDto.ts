@@ -1,6 +1,6 @@
 import { Expose, Transform } from "class-transformer";
 
-export class RecentDto {
+export class BoardDto {
   @Expose()
   readonly boardId: number;
 
