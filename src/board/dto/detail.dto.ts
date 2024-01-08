@@ -1,3 +1,5 @@
+import { CommentDto } from "../../comment/dto/comment.dto";
+
 export class BoardDetail {
   readonly boardId: number;
   readonly title: string;
@@ -8,4 +10,5 @@ export class BoardDetail {
   readonly createdAt: string;
   readonly hits: number;
   readonly likes: number;
+  readonly comments: CommentDto[];
 }

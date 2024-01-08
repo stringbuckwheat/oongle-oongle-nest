@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { BoardService } from "./board.service";
 import { Board } from "./board.entity";
-import { BoardDto } from "./dto/boardDto";
+import { BoardDto } from "./dto/board.dto";
 import { BoardDetail } from "./dto/detail.dto";
 
 @Controller("board")

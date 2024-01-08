@@ -4,8 +4,10 @@ import { Board } from "./board.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "../user/entities/user.entity";
-import { BoardDto } from "./dto/boardDto";
+import { BoardDto } from "./dto/board.dto";
 import { BoardDetail } from "./dto/detail.dto";
+import { Comment } from "../comment/comment.entity";
+import { CommentDto } from "../comment/dto/comment.dto";
 
 @Injectable()
 export class BoardService {
@@ -68,30 +70,30 @@ export class BoardService {
     return date.toISOString().split("T")[0];
   }
 
-  async findById(postId: number): Promise<Board> {
-    const post = await this.boardRepository.findOne({
+  async findById(boardId: number): Promise<Board> {
+    const board = await this.boardRepository.findOne({
       where: {
-        boardId: postId
+        boardId: boardId
       }
     });
 
-    if (!post) {
+    if (!board) {
       throw new NotFoundException("글 없음");
     }
 
-    return post;
+    return board;
   }
 
-  async getDetail(postId: number): Promise<BoardDetail> {
+  async getDetail(boardId: number): Promise<BoardDetail> {
     const board = await this.boardRepository.findOne({
       where: {
-        boardId: postId
+        boardId: boardId
       },
-      relations: ["user", "likes"] // join
+      relations: ["user", "likes", "comments", "comments.user", "comments.replies", "comments.parentComment"] // join
     });
 
     // 조회수 업데이트
-    await this.boardRepository.update(postId, { hits: board.hits + 1 });
+    await this.boardRepository.update(boardId, { hits: board.hits + 1 });
 
     // DTO Return
     return {
@@ -100,13 +102,26 @@ export class BoardService {
       name: board.name ?? board.user?.name ?? "",
       memberId: board.name ? null : board.user?.userId ?? null,
       isMember: board.name == null,
-      createdAt: board.createdAt.toISOString().replace("T", " ").split(".")[0], // 오늘이면 시간, 아니면 날짜
+      createdAt: board.createdAt.toISOString().replace("T", " ").split(".")[0],
       hits: board.hits,
       likes: board.likes?.length ?? 0,
 
-      content: board.content
-      // 이후 댓글 데이터 추가
+      content: board.content,
+      comments: board.comments.map(comment => this.mapToCommentDto(comment))
     };
+  }
+
+  private mapToCommentDto(comment: Comment): CommentDto {
+    if(!comment.parentComment){
+      return ({
+        commentId: comment.commentId,
+        content: comment.content,
+        name: comment.name ? comment.name : comment.user.name,
+        userId: comment.name ? null : comment.user?.userId ?? null,
+        createdAt: this.transformCreateDate(comment.createdAt),
+        replies: comment.replies?.map(reply => this.mapToCommentDto(reply)) ?? []
+      });
+    }
   }
 
   async hashedBoard(postData: Partial<Board>): Promise<Partial<Board>> {
@@ -119,8 +134,8 @@ export class BoardService {
     if (postData.password) {
       // 비밀번호 암호화
       const encrypt = await this.hashedBoard(postData);
-      const post = this.boardRepository.create(encrypt);
-      return this.boardRepository.save(post);
+      const board = this.boardRepository.create(encrypt);
+      return this.boardRepository.save(board);
     }
 
     // 회원일 경우

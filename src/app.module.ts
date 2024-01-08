@@ -6,10 +6,11 @@ import { UserModule } from './user/user.module';
 import { BoardModule } from './board/board.module';
 import { AuthModule } from './auth/auth.module';
 import { LikeModule } from './like/like.module';
+import { CommentModule } from './comment/comment.module';
 
 @Module({
-  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule,],
-  controllers: [AppController],
+  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule, CommentModule,],
+  controllers: [AppController,],
   providers: [],
 })
 export class AppModule {}
