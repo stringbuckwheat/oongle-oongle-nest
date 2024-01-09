@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Body, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Comment } from "./comment.entity";
 import { Repository } from "typeorm";
@@ -26,31 +26,34 @@ export class CommentService {
       }
     });
 
-    // 비회원의 경우 비밀번호 암호화
+    const commonOptions = {
+      content: commentData.content,
+      board,
+    };
+
     if (commentData.password) {
       const encrypt = await bcrypt.hash(commentData.password, 10);
-
-      const comment = this.commentRepository.create({
-        content: commentData.content,
-        board,
-        name: commentData.name,
-        password: encrypt
-      });
-
-      return this.mapToCommentDto(await this.commentRepository.save(comment));
+      const passwordOptions = { ...commonOptions, name: commentData.name, password: encrypt };
+      return this.createCommentWithParent(commentData.commentId, passwordOptions);
     }
 
-    // 회원일 경우
     const user = await this.userRepository.findOneOrFail({
       where: {
         userId: commentData.userId
       }
     });
 
-    const comment = this.commentRepository.create({
-      content: commentData.content, board, user
-    });
+    const userOptions = { ...commonOptions, user };
+    return this.createCommentWithParent(commentData.commentId, userOptions);
+  }
 
+  private async createCommentWithParent(commentId: number, options: Partial<Comment>): Promise<CommentDto> {
+    if (commentId) {
+      const parentComment = await this.findById(commentId);
+      options.parentComment = parentComment;
+    }
+
+    const comment = this.commentRepository.create(options);
     return this.mapToCommentDto(await this.commentRepository.save(comment));
   }
 
@@ -61,7 +64,8 @@ export class CommentService {
       createdAt: this.handleDate(comment.createdAt),
       name: comment.name ?? comment.user.name,
       userId: comment.name ? null : comment.user?.userId ?? null,
-      replies: []
+      replies: [],
+      deps: comment.parentComment ? 1 : 0
     };
   }
 
@@ -79,6 +83,17 @@ export class CommentService {
     return date.toISOString().split("T")[0];
   }
 
+  async verify(@Body() verifyData): Promise<any> {
+    const comment = await this.findById(verifyData.commentId);
+    const isPasswordMatch = await bcrypt.compare(verifyData.password, comment.password);
+
+    if(!isPasswordMatch) {
+      throw new UnauthorizedException("비밀번호 불일치");
+    }
+
+    return { commentId: comment.commentId, verify: isPasswordMatch };;
+  }
+
   async findById(commentId: number): Promise<Comment> {
     const comment = await this.commentRepository.findOne({
       where: {
@@ -91,12 +106,6 @@ export class CommentService {
     }
 
     return comment;
-  }
-
-  async update(commentId: number, updateData: Partial<Comment>): Promise<Comment> {
-    const comment = await this.findById(commentId);
-    Object.assign(comment, updateData);
-    return this.commentRepository.save(comment);
   }
 
   async delete(commentId: number): Promise<void> {

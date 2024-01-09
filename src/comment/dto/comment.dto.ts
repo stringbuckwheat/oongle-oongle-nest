@@ -5,4 +5,5 @@ export class CommentDto {
   readonly name: string;
   readonly userId: number;
   readonly replies: CommentDto[];
+  readonly deps: number;
 }

@@ -16,9 +16,9 @@ export class CommentController {
     return this.commentService.create(commentData);
   }
 
-  @Put(":id")
-  async update(@Param("id") commentId: number, @Body() updateData: Partial<Comment>): Promise<Comment> {
-    return this.commentService.update(commentId, updateData);
+  @Post(":id/verify")
+  async verify(@Body() verifyData): Promise<any> {
+    return this.commentService.verify(verifyData);
   }
 
   @Delete(":id")

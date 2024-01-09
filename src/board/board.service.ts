@@ -85,12 +85,25 @@ export class BoardService {
   }
 
   async getDetail(boardId: number): Promise<BoardDetail> {
-    const board = await this.boardRepository.findOne({
-      where: {
-        boardId: boardId
-      },
-      relations: ["user", "likes", "comments", "comments.user", "comments.replies", "comments.parentComment"] // join
-    });
+    // relations은 where 조건 못 검
+    // Replies로 self join 되어 있으므로, parentComment가 없는 댓글만 들고와야 함
+    // const board = await this.boardRepository.findOne({
+    //   where: {
+    //     boardId: boardId
+    //   },
+    //   relations: ["user", "likes", "comments", "comments.user", "comments.replies", "comments.parentComment", "comments.replies.user"] // join
+    // });
+
+    const board = await this.boardRepository.createQueryBuilder("board")
+      .leftJoinAndSelect("board.user", "user")
+      .leftJoinAndSelect("board.likes", "likes")
+      .leftJoinAndSelect("board.comments", "comments")
+      .leftJoinAndSelect("comments.user", "commentUser")
+      .leftJoinAndSelect("comments.replies", "replies")
+      .leftJoinAndSelect("replies.user", "replyUser")
+      .where("comments.parentComment IS NULL") // 대댓글이 아닌 댓글만 들고옴
+      .andWhere("board.boardId = :boardId", { boardId })
+      .getOne();
 
     // 조회수 업데이트
     await this.boardRepository.update(boardId, { hits: board.hits + 1 });
@@ -112,16 +125,15 @@ export class BoardService {
   }
 
   private mapToCommentDto(comment: Comment): CommentDto {
-    if(!comment.parentComment){
-      return ({
-        commentId: comment.commentId,
-        content: comment.content,
-        name: comment.name ? comment.name : comment.user.name,
-        userId: comment.name ? null : comment.user?.userId ?? null,
-        createdAt: this.transformCreateDate(comment.createdAt),
-        replies: comment.replies?.map(reply => this.mapToCommentDto(reply)) ?? []
-      });
-    }
+    return ({
+      commentId: comment.commentId,
+      content: comment.content,
+      name: comment.name ? comment.name : comment.user.name,
+      userId: comment.name ? null : comment.user?.userId ?? null,
+      createdAt: this.transformCreateDate(comment.createdAt),
+      replies: comment.replies?.map(reply => this.mapToCommentDto(reply)) ?? [],
+      deps: comment.parentComment ? 1 : 0
+    });
   }
 
   async hashedBoard(postData: Partial<Board>): Promise<Partial<Board>> {
