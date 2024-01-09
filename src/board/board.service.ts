@@ -15,7 +15,9 @@ export class BoardService {
     @InjectRepository(Board)
     private readonly boardRepository: Repository<Board>,
     @InjectRepository(User)
-    private readonly userRepostiory: Repository<User>
+    private readonly userRepostiory: Repository<User>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>
   ) {
   }
 
@@ -35,7 +37,7 @@ export class BoardService {
       boardId: board.boardId,
       title: board.title,
       name: board.name ?? board.user?.name ?? "",
-      memberId: board.name ? null : board.user?.userId ?? null,
+      userId: board.name ? null : board.user?.userId ?? null,
       isMember: board.name == null,
       createdAt: this.transformCreateDate(board.createdAt), // 오늘이면 시간, 아니면 날짜
       hits: board.hits,
@@ -113,7 +115,7 @@ export class BoardService {
       boardId: board.boardId,
       title: board.title,
       name: board.name ?? board.user?.name ?? "",
-      memberId: board.name ? null : board.user?.userId ?? null,
+      userId: board.name ? null : board.user?.userId ?? null,
       isMember: board.name == null,
       createdAt: board.createdAt.toISOString().replace("T", " ").split(".")[0],
       hits: board.hits,
@@ -193,6 +195,16 @@ export class BoardService {
     Object.assign(board, updateData);
 
     return await this.boardRepository.save(board);
+  }
+
+  async markCommentAsRead(boardId: number): Promise<{ boardId }> {
+    await this.commentRepository.createQueryBuilder()
+      .update(Comment)
+      .set({ checked: true })
+      .where("boardId = :boardId", { boardId })
+      .execute();
+
+    return { boardId };
   }
 
   async delete(id: number): Promise<void> {

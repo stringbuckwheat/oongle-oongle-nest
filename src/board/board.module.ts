@@ -4,6 +4,7 @@ import { BoardService } from "./board.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Board } from "./board.entity";
 import { User } from "../user/entities/user.entity";
+import { Comment } from "../comment/comment.entity";
 
 @Module({
   imports: [
@@ -12,6 +13,9 @@ import { User } from "../user/entities/user.entity";
     ),
     TypeOrmModule.forFeature(
       [User]
+    ),
+    TypeOrmModule.forFeature(
+      [Comment]
     )
   ],
   controllers: [BoardController],

@@ -5,6 +5,7 @@ import { CommentService } from "./comment.service";
 import { Comment } from "./comment.entity"
 import { Board } from "../board/board.entity";
 import { User } from "../user/entities/user.entity";
+import { AlarmGateway } from "../alarm/alarm.gateway";
 
 @Module({
   imports: [
@@ -13,6 +14,6 @@ import { User } from "../user/entities/user.entity";
     TypeOrmModule.forFeature([User])
   ],
   controllers: [CommentController],
-  providers: [CommentService]
+  providers: [CommentService, AlarmGateway]
 })
 export class CommentModule {}

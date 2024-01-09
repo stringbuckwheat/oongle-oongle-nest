@@ -6,6 +6,7 @@ import * as bcrypt from "bcrypt";
 import { User } from "../user/entities/user.entity";
 import { Board } from "../board/board.entity";
 import { CommentDto } from "./dto/comment.dto";
+import { AlarmGateway } from "../alarm/alarm.gateway";
 
 @Injectable()
 export class CommentService {
@@ -15,7 +16,8 @@ export class CommentService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Board)
-    private readonly boardRepository: Repository<Board>
+    private readonly boardRepository: Repository<Board>,
+    private readonly alarmGateway: AlarmGateway,
   ) {
   }
 
@@ -53,8 +55,21 @@ export class CommentService {
       options.parentComment = parentComment;
     }
 
-    const comment = this.commentRepository.create(options);
-    return this.mapToCommentDto(await this.commentRepository.save(comment));
+    const entity = this.commentRepository.create(options);
+    const comment = await this.commentRepository.save(entity);
+
+    // 댓글 작성 시 글 주인에게 socket 알림
+    this.alarmGateway.handleCommentCreatedEvent({
+      userId: options.user?.userId,
+      boardId: options.board.boardId,
+      title: options.board.title,
+      commentId: comment.commentId,
+      content: comment.content,
+      createdAt: comment.createdAt,
+      message: '새로운 댓글이 작성되었습니다!',
+    });
+
+    return this.mapToCommentDto(comment);
   }
 
   private mapToCommentDto(comment: Comment): CommentDto {

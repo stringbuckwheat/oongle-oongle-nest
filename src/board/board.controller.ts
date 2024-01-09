@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { BoardService } from "./board.service";
 import { Board } from "./board.entity";
 import { BoardDto } from "./dto/board.dto";
 import { BoardDetail } from "./dto/detail.dto";
+import { AuthGuard } from "@nestjs/passport";
 
 @Controller("board")
 export class BoardController {
@@ -37,6 +38,12 @@ export class BoardController {
   @Put("/:id")
   update(@Param("id") id: number, @Body() updateData): Promise<Board> {
     return this.boardService.update(id, updateData);
+  }
+
+  @Put(":id/comment")
+  @UseGuards(AuthGuard("jwt"))
+  async markCommentAsRead(@Param("id") boardId: number): Promise<{ boardId }> {
+    return this.boardService.markCommentAsRead(boardId);
   }
 
   @Delete("/:id")

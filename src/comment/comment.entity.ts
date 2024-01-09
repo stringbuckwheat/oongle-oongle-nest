@@ -10,30 +10,33 @@ import {
 import { Board } from "../board/board.entity";
 import { User } from "../user/entities/user.entity";
 
-@Entity('comment')
+@Entity("comment")
 export class Comment {
   @PrimaryGeneratedColumn()
   commentId: number;
 
-  @Column({type: 'text'})
+  @Column({ type: "text" })
   content: string;
 
-  @ManyToOne(() => Board, {onDelete: "CASCADE"})
-  @JoinColumn({name: "BoardId"})
+  @ManyToOne(() => Board, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "boardId" })
   board: Board;
 
-  @ManyToOne(() => User, {onDelete: "CASCADE"})
-  @JoinColumn({name: "userId"})
+  @ManyToOne(() => User, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "userId" })
   user: User;
 
-  @Column({nullable: true})
+  @Column({ nullable: true })
   name: string;
 
-  @Column({nullable: true})
+  @Column({ nullable: true })
   password: string;
 
-  @ManyToOne(() => Comment, {onDelete: "CASCADE"})
-  @JoinColumn({name: "parentCommentId"})
+  @Column({ default: false })
+  checked: boolean;
+
+  @ManyToOne(() => Comment, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "parentCommentId" })
   parentComment: Comment;
 
   @OneToMany(() => Comment, comment => comment.parentComment)

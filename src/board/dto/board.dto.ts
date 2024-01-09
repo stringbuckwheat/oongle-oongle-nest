@@ -10,7 +10,7 @@ export class BoardDto {
   @Expose()
   readonly name: string;
   @Expose()
-  readonly memberId: number;
+  readonly userId: number;
 
   @Expose()
   readonly isMember: boolean;

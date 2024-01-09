@@ -2,11 +2,12 @@ import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { AuthService } from "./auth.service";
-import { AuthController } from './auth.controller';
+import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./jwt.strategy";
 import { UserService } from "../user/user.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "../user/entities/user.entity";
+import { Comment } from "../comment/comment.entity";
 
 @Module({
   imports: [
@@ -17,6 +18,9 @@ import { User } from "../user/entities/user.entity";
     }),
     TypeOrmModule.forFeature(
       [User]
+    ),
+    TypeOrmModule.forFeature(
+      [Comment]
     )
   ],
   providers: [AuthService, JwtStrategy, UserService,],

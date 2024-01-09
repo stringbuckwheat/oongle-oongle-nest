@@ -7,9 +7,10 @@ import { BoardModule } from './board/board.module';
 import { AuthModule } from './auth/auth.module';
 import { LikeModule } from './like/like.module';
 import { CommentModule } from './comment/comment.module';
+import { AlarmModule } from './alarm/alarm.module';
 
 @Module({
-  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule, CommentModule,],
+  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule, CommentModule, AlarmModule,],
   controllers: [AppController,],
   providers: [],
 })
