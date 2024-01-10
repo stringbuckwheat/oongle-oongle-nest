@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer
 } from "@nestjs/websockets";
-import { AlarmDto } from "./alarm.dto";
+import { CommentCreatedAlarm } from "./dto/commentCreatedAlarm.dto";
 
 @WebSocketGateway({
   cors: {
@@ -35,8 +35,8 @@ export class AlarmGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   @SubscribeMessage("commentCreated")
-  handleCommentCreatedEvent(payload: AlarmDto): void {
-    console.log("handleCommentCreatedEvent")
+  handleCommentCreatedEvent(payload: CommentCreatedAlarm): void {
+    console.log("handleCommentCreatedEvent", payload);
     // userId에 댓글 알림
     this.server.to(`user-${payload.userId}`).emit('commentNotification', { payload });
   }

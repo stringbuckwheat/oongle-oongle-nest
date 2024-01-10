@@ -1,24 +1,26 @@
-import { Expose, Transform } from "class-transformer";
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
+/**
+ * Response용 DTO 공통 속성
+ */
 export class BoardDto {
-  @Expose()
-  readonly boardId: number;
-
-  @Expose()
+  @IsString()
+  @IsNotEmpty()
   readonly title: string;
 
-  @Expose()
-  readonly name: string;
-  @Expose()
-  readonly userId: number;
+  @IsString()
+  @IsNotEmpty()
+  readonly content: string;
 
-  @Expose()
-  readonly isMember: boolean;
+  @IsOptional()
+  @IsNumber()
+  readonly userId?: number; // nullable
 
-  readonly createdAt: string;
+  @IsOptional()
+  @IsString()
+  readonly name?: string; // nullable
 
-  @Expose()
-  readonly hits: number;
-  @Expose()
-  readonly likes: number;
+  @IsOptional()
+  @IsString()
+  readonly password?: string; // nullable
 }

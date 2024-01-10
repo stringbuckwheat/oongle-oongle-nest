@@ -1,9 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { BoardService } from "./board.service";
-import { Board } from "./board.entity";
-import { BoardDto } from "./dto/board.dto";
+import { BoardList } from "./dto/boardList.dto";
 import { BoardDetail } from "./dto/detail.dto";
 import { AuthGuard } from "@nestjs/passport";
+import { VerifyResponse } from "./dto/verifyResponse.dto";
+import { VerifyRequest } from "./dto/verifyRequest.dto";
+import { UpdateBoard } from "./dto/update.dto";
+import { BoardDto } from "./dto/board.dto";
 
 @Controller("board")
 export class BoardController {
@@ -11,12 +14,12 @@ export class BoardController {
   }
 
   @Get()
-  getAll(): Promise<BoardDto[]> {
+  getAll(): Promise<BoardList[]> {
     return this.boardService.findAll();
   }
 
   @Get("/popular")
-  getPopular(): Promise<BoardDto[]> {
+  getPopular(): Promise<BoardList[]> {
     return this.boardService.getPopular();
   }
 
@@ -26,17 +29,17 @@ export class BoardController {
   }
 
   @Post()
-  async create(@Body() postData): Promise<number> {
+  async create(@Body() postData: BoardDto): Promise<number> {
     return (await this.boardService.create(postData)).boardId;
   }
 
   @Post("/:id/verify")
-  async verifyAnonymous(@Body() verifyData): Promise<any> {
+  async verifyAnonymous(@Body() verifyData: VerifyRequest): Promise<VerifyResponse> {
     return await this.boardService.verifyAnonymous(verifyData);
   }
 
   @Put("/:id")
-  update(@Param("id") id: number, @Body() updateData): Promise<Board> {
+  update(@Param("id") id: number, @Body() updateData: UpdateBoard): Promise<BoardDetail> {
     return this.boardService.update(id, updateData);
   }
 

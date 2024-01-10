@@ -5,8 +5,9 @@ import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "../user/entities/user.entity";
 import { Board } from "../board/board.entity";
-import { CommentDto } from "./dto/comment.dto";
+import { CommentResponseDto } from "./dto/commentResponse.dto";
 import { AlarmGateway } from "../alarm/alarm.gateway";
+import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
 
 @Injectable()
 export class CommentService {
@@ -21,7 +22,7 @@ export class CommentService {
   ) {
   }
 
-  async create(commentData): Promise<CommentDto> {
+  async create(commentData): Promise<CommentResponseDto> {
     const board = await this.boardRepository.findOneOrFail({
       where: {
         boardId: commentData.boardId
@@ -49,7 +50,7 @@ export class CommentService {
     return this.createCommentWithParent(commentData.commentId, userOptions);
   }
 
-  private async createCommentWithParent(commentId: number, options: Partial<Comment>): Promise<CommentDto> {
+  private async createCommentWithParent(commentId: number, options: Partial<Comment>): Promise<CommentResponseDto> {
     if (commentId) {
       const parentComment = await this.findById(commentId);
       options.parentComment = parentComment;
@@ -59,46 +60,12 @@ export class CommentService {
     const comment = await this.commentRepository.save(entity);
 
     // 댓글 작성 시 글 주인에게 socket 알림
-    this.alarmGateway.handleCommentCreatedEvent({
-      userId: options.user?.userId,
-      boardId: options.board.boardId,
-      title: options.board.title,
-      commentId: comment.commentId,
-      content: comment.content,
-      createdAt: comment.createdAt,
-      message: '새로운 댓글이 작성되었습니다!',
-    });
+    this.alarmGateway.handleCommentCreatedEvent(new CommentCreatedAlarm(comment));
 
-    return this.mapToCommentDto(comment);
+    return new CommentResponseDto(comment);
   }
 
-  private mapToCommentDto(comment: Comment): CommentDto {
-    return {
-      commentId: comment.commentId,
-      content: comment.content,
-      createdAt: this.handleDate(comment.createdAt),
-      name: comment.name ?? comment.user.name,
-      userId: comment.name ? null : comment.user?.userId ?? null,
-      replies: [],
-      deps: comment.parentComment ? 1 : 0
-    };
-  }
-
-  private handleDate(date: Date): string {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
-
-    // 오늘 날짜면
-    if (date.toISOString().split("T")[0] === today) {
-      // 시:분으로 가공
-      return date.toISOString().split("T")[1].substring(0, 5);
-    }
-
-    // 오늘 날짜가 아니면 해당 날짜 리턴
-    return date.toISOString().split("T")[0];
-  }
-
-  async verify(@Body() verifyData): Promise<any> {
+  async verify(@Body() verifyData): Promise<{ commentId: number, verify: boolean }> {
     const comment = await this.findById(verifyData.commentId);
     const isPasswordMatch = await bcrypt.compare(verifyData.password, comment.password);
 

@@ -5,7 +5,10 @@ import * as bcrypt from "bcrypt";
 import { Comment } from "../comment/comment.entity";
 import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
-import { AlarmDto } from "../alarm/alarm.dto";
+import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
+import { LoginDto } from "./dto/login.dto";
+import { User } from "../user/entities/user.entity";
+import { AuthUser } from "./dto/authUser.dto";
 
 @Injectable()
 export class AuthService {
@@ -17,17 +20,17 @@ export class AuthService {
   ) {
   }
 
-  async validateUser(payload: any): Promise<any> {
-    return await this.userService.findByUsername(payload.username);
+  async validateUser(username: string): Promise<User> {
+    return await this.userService.findByUsername(username);
   }
 
-  async login(req: any): Promise<any> {
+  async login(loginDto: LoginDto): Promise<AuthUser> {
     // DB 검증 로직
-    const user = await this.userService.findByUsername(req.username);
+    const user = await this.userService.findByUsername(loginDto.username);
     console.log("user", user);
 
     // ID, PW 검사
-    if (!user || !bcrypt.compare(req.password, user.password)) {
+    if (!user || !bcrypt.compare(loginDto.password, user.password)) {
       throw new UnauthorizedException();
     }
 
@@ -43,9 +46,8 @@ export class AuthService {
     };
   }
 
-  async getAlarm(userId: number): Promise<AlarmDto[]> {
-    console.log("==== userId", userId);
-    // 사용자 알림
+  // 사용자 알림
+  async getAlarm(userId: number): Promise<CommentCreatedAlarm[]> {
     const unCheckedComments = await this.commentRepository.find({
       where: {
         board: {
@@ -59,14 +61,6 @@ export class AuthService {
       relations: ["user", "board"]
     });
 
-    return unCheckedComments.map((comment) => ({
-      userId: comment.user?.userId,
-      boardId: comment.board.boardId,
-      title: comment.board.title,
-      commentId: comment.commentId,
-      content: comment.content,
-      createdAt: comment.createdAt,
-      message: "새로운 댓글이 작성되었습니다!"
-    }))
+    return unCheckedComments.map((comment) => (new CommentCreatedAlarm(comment)));
   }
 }

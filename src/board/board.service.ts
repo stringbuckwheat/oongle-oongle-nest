@@ -4,10 +4,13 @@ import { Board } from "./board.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "../user/entities/user.entity";
-import { BoardDto } from "./dto/board.dto";
+import { BoardList } from "./dto/boardList.dto";
 import { BoardDetail } from "./dto/detail.dto";
 import { Comment } from "../comment/comment.entity";
-import { CommentDto } from "../comment/dto/comment.dto";
+import { VerifyResponse } from "./dto/verifyResponse.dto";
+import { VerifyRequest } from "./dto/verifyRequest.dto";
+import { UpdateBoard } from "./dto/update.dto";
+import { BoardDto } from "./dto/board.dto";
 
 @Injectable()
 export class BoardService {
@@ -21,7 +24,7 @@ export class BoardService {
   ) {
   }
 
-  async findAll(): Promise<BoardDto[]> {
+  async findAll(): Promise<BoardList[]> {
     const boards = await this.boardRepository.createQueryBuilder("board")
       .leftJoinAndSelect("board.user", "user") // user: 연결된 엔티티의 별칭
       .leftJoinAndSelect("board.likes", "likes")
@@ -29,23 +32,10 @@ export class BoardService {
       .take(10)
       .getMany();
 
-    return boards.map(board => this.mapBoardToDto(board));
+    return boards.map(board => new BoardList(board));
   }
 
-  private mapBoardToDto(board: Board): BoardDto {
-    return ({
-      boardId: board.boardId,
-      title: board.title,
-      name: board.name ?? board.user?.name ?? "",
-      userId: board.name ? null : board.user?.userId ?? null,
-      isMember: board.name == null,
-      createdAt: this.transformCreateDate(board.createdAt), // 오늘이면 시간, 아니면 날짜
-      hits: board.hits,
-      likes: board.likes?.length ?? 0
-    });
-  }
-
-  async getPopular(): Promise<BoardDto[]> {
+  async getPopular(): Promise<BoardList[]> {
     const populars = await this.boardRepository.createQueryBuilder("board")
       .leftJoinAndSelect("board.user", "user") // user: 연결된 엔티티의 별칭
       .leftJoinAndSelect("board.likes", "likes")
@@ -55,21 +45,7 @@ export class BoardService {
       .take(5)
       .getMany();
 
-    return populars.map(board => this.mapBoardToDto(board));
-  }
-
-  private transformCreateDate(date: Date): string {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
-
-    // 오늘 날짜면
-    if (date.toISOString().split("T")[0] === today) {
-      // 시:분으로 가공
-      return date.toISOString().split("T")[1].substring(0, 5);
-    }
-
-    // 오늘 날짜가 아니면 해당 날짜 리턴
-    return date.toISOString().split("T")[0];
+    return populars.map(board => new BoardList(board));
   }
 
   async findById(boardId: number): Promise<Board> {
@@ -111,44 +87,20 @@ export class BoardService {
     await this.boardRepository.update(boardId, { hits: board.hits + 1 });
 
     // DTO Return
-    return {
-      boardId: board.boardId,
-      title: board.title,
-      name: board.name ?? board.user?.name ?? "",
-      userId: board.name ? null : board.user?.userId ?? null,
-      isMember: board.name == null,
-      createdAt: board.createdAt.toISOString().replace("T", " ").split(".")[0],
-      hits: board.hits,
-      likes: board.likes?.length ?? 0,
-
-      content: board.content,
-      comments: board.comments.map(comment => this.mapToCommentDto(comment))
-    };
+    return new BoardDetail(board);
   }
 
-  private mapToCommentDto(comment: Comment): CommentDto {
-    return ({
-      commentId: comment.commentId,
-      content: comment.content,
-      name: comment.name ? comment.name : comment.user.name,
-      userId: comment.name ? null : comment.user?.userId ?? null,
-      createdAt: this.transformCreateDate(comment.createdAt),
-      replies: comment.replies?.map(reply => this.mapToCommentDto(reply)) ?? [],
-      deps: comment.parentComment ? 1 : 0
-    });
+  async hashedBoard(rawPassword: string): Promise<string> {
+    return await bcrypt.hash(rawPassword, 10); // 10 == saltRounds
   }
 
-  async hashedBoard(postData: Partial<Board>): Promise<Partial<Board>> {
-    const hashedPassword = await bcrypt.hash(postData.password, 10); // 10 == saltRounds
-    return { ...postData, password: hashedPassword };
-  }
-
-  async create(postData): Promise<Board> {
+  async create(postData: BoardDto): Promise<Board> {
     // 비회원일 경우
     if (postData.password) {
       // 비밀번호 암호화
-      const encrypt = await this.hashedBoard(postData);
-      const board = this.boardRepository.create(encrypt);
+      const encrypt = await this.hashedBoard(postData.password);
+
+      const board = this.boardRepository.create({...postData, password: encrypt});
       return this.boardRepository.save(board);
     }
 
@@ -168,7 +120,7 @@ export class BoardService {
     return this.boardRepository.save(board);
   }
 
-  async verifyAnonymous(verifyData): Promise<any> {
+  async verifyAnonymous(verifyData: VerifyRequest): Promise<VerifyResponse> {
     const prevBoard = await this.findById(verifyData.boardId);
     const isPasswordMatch = await bcrypt.compare(verifyData.password, prevBoard.password);
 
@@ -179,22 +131,25 @@ export class BoardService {
     return { boardId: prevBoard.boardId, verify: isPasswordMatch };
   }
 
-  async update(id: number, updateData): Promise<Board> {
-    const board = await this.findById(id);
+  async update(id: number, updateData: UpdateBoard): Promise<BoardDetail> {
+    const prevBoard = await this.findById(id);
 
-    if (!board) {
+    if (!prevBoard) {
       throw new Error("글이 존재하지 않습니다.");
     }
 
     // 수정된 내용 업데이트
     // 회원이면 바로 updateData, 아니면 hash 해줘야함
     if (updateData.password) {
-      updateData = await this.hashedBoard(updateData);
+      const encrypt = await this.hashedBoard(updateData.password);
+      updateData = {...updateData, password: encrypt};
     }
 
-    Object.assign(board, updateData);
+    Object.assign(prevBoard, updateData);
 
-    return await this.boardRepository.save(board);
+    const board = await this.boardRepository.save(prevBoard);
+
+    return new BoardDetail(board);
   }
 
   async markCommentAsRead(boardId: number): Promise<{ boardId }> {
