@@ -7,7 +7,7 @@ import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
 import { LoginDto } from "./dto/login.dto";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 import { AuthUser } from "./dto/authUser.dto";
 
 @Injectable()

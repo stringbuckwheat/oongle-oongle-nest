@@ -8,7 +8,7 @@ import {
   UpdateDateColumn
 } from "typeorm";
 import { Board } from "../board/board.entity";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 
 @Entity("comment")
 export class Comment {

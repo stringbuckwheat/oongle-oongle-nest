@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Board } from "./board.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 import { BoardList } from "./dto/boardList.dto";
 import { BoardDetail } from "./dto/detail.dto";
 import { Comment } from "../comment/comment.entity";

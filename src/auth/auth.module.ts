@@ -6,7 +6,7 @@ import { AuthController } from "./auth.controller";
 import { JwtStrategy } from "./jwt.strategy";
 import { UserService } from "../user/user.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 import { Comment } from "../comment/comment.entity";
 
 @Module({
@@ -17,11 +17,8 @@ import { Comment } from "../comment/comment.entity";
       signOptions: { expiresIn: "1h" } // 토큰 만료 시간
     }),
     TypeOrmModule.forFeature(
-      [User]
+      [User, Comment]
     ),
-    TypeOrmModule.forFeature(
-      [Comment]
-    )
   ],
   providers: [AuthService, JwtStrategy, UserService,],
   exports: [AuthService],

@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Comment } from "./comment.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 import { Board } from "../board/board.entity";
 import { CommentResponseDto } from "./dto/commentResponse.dto";
 import { AlarmGateway } from "../alarm/alarm.gateway";

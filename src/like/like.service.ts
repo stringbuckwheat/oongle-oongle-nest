@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { InjectRepository } from "@nestjs/typeorm";
 import { Like } from "./like.entity";
 import { Repository } from "typeorm";
-import { User } from "../user/entities/user.entity";
+import { User } from "../user/user.entity";
 import { Board } from "../board/board.entity";
 
 @Injectable()
