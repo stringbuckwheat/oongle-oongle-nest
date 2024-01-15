@@ -5,6 +5,8 @@ import { Repository } from "typeorm";
 import { Message } from "./entity/message.entity";
 import { UserChatRoom } from "./entity/user-chat-room.entity";
 import { User } from "../user/user.entity";
+import { ChatRoomDto } from "./dto/chat-room.dto";
+import { MessageDto } from "./dto/message.dto";
 
 @Injectable()
 export class ChatService {
@@ -20,7 +22,7 @@ export class ChatService {
   ) {
   }
 
-  async getRoomByUserId(@Body() data: { myUserId: number, yourUserId: number }): Promise<any> {
+  async getRoomByUserId(@Body() data: { myUserId: number, yourUserId: number }): Promise<ChatRoomDto> {
     const { myUserId, yourUserId } = data;
 
     // 내 userId와 상대의 userId로 이루어진 1:1 채팅 찾기
@@ -73,7 +75,8 @@ export class ChatService {
         chatRoom: {
           chatRoomId: room[0].chatRoom.chatRoomId,
         }
-      }
+      },
+      relations: ["sender"]
     })
 
     // 방 정보, 지난 메시지 리턴
@@ -81,7 +84,7 @@ export class ChatService {
       title: user.name, // 상대방 이름
       chatRoomId: room[0].chatRoom.chatRoomId,
       participants: 2,
-      messages
+      messages: messages.map((message) => new MessageDto(message))
     };
   }
 
@@ -95,7 +98,7 @@ export class ChatService {
     await this.userChatRoomRepository.save(userChatRoomEntry);
   }
 
-  async saveMessage(roomId: number, senderId: number, content: string): Promise<Message> {
+  async saveMessage(roomId: number, senderId: number, content: string): Promise<MessageDto> {
     const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: roomId } });
     const sender = await this.userRepository.findOne({ where: { userId: senderId } });
 
@@ -109,7 +112,9 @@ export class ChatService {
       content
     });
 
-    return await this.messageRepository.save(message);
+    const savedMessage = await this.messageRepository.save(message);
+
+    return new MessageDto(savedMessage);
   }
 
   async joinRoom(userId: number, chatRoomId: number): Promise<void> {
