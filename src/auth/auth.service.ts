@@ -27,7 +27,6 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthUser> {
     // DB 검증 로직
     const user = await this.userService.findByUsername(loginDto.username);
-    console.log("user", user);
 
     // ID, PW 검사
     if (!user || !bcrypt.compare(loginDto.password, user.password)) {
