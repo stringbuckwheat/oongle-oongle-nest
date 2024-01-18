@@ -24,6 +24,10 @@ export class AuthService {
     return await this.userService.findByUsername(username);
   }
 
+  async findByUserId(userId: number): Promise<User> {
+    return await this.userService.findByUserId(userId);
+  }
+
   async login(loginDto: LoginDto): Promise<AuthUser> {
     // DB 검증 로직
     const user = await this.userService.findByUsername(loginDto.username);
@@ -40,7 +44,8 @@ export class AuthService {
     return {
       accessToken: this.jwtService.sign(payload),
       userId: user.userId,
-      name: user.username,
+      username: user.username,
+      name: user.name,
       alarms: await this.getAlarm(user.userId)
     };
   }

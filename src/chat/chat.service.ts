@@ -22,25 +22,56 @@ export class ChatService {
   ) {
   }
 
+  async getAllByUserId(user): Promise<ChatRoom[]> {
+    console.log("getAllByUserId ========");
+    // 해당 유저가 속한 모든 채팅방 목록
+    // 가장 최근 메시지를 포함해서 DESC
+    const chatRooms = await this.userChatRoomRepository.createQueryBuilder("userChatRoom")
+      .innerJoinAndSelect("userChatRoom.user", "user")
+      .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
+      .leftJoinAndSelect("chatRoom.messages", "messages")
+      .where("user.userId = :userId", { userId: user.userId })
+      .getMany();
+
+    console.log("chatRooms", chatRooms)
+
+    return chatRooms.map((userChatRoom) => userChatRoom.chatRoom);
+  }
+
+  async getRoomByChatRoomId(chatRoomId: number): Promise<any> {
+    // chatRoom 정보
+    const chatRoom = this.chatRoomRepository.findOne({
+      where: {
+        chatRoomId
+      },
+      relations: ["participants", "messages"]
+    })
+
+    console.log("chatRoom", chatRoom);
+
+    return chatRoom;
+  }
+
   async getRoomByUserId(@Body() data: { myUserId: number, yourUserId: number }): Promise<ChatRoomDto> {
     const { myUserId, yourUserId } = data;
+    console.log("data", data);
 
     // 내 userId와 상대의 userId로 이루어진 1:1 채팅 찾기
-    const room = await this.userChatRoomRepository.find({
-      where: [
-        {
-          user: { userId: myUserId }
-        }, {
-          user: { userId: yourUserId }
-        }
-      ],
-      relations: ["chatRoom"]
-    });
+    const room = await this.userChatRoomRepository.createQueryBuilder("userChatRoom")
+      .innerJoin("userChatRoom.user", "user")
+      .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
+      .where("user.userId IN (:myUserId, :yourUserId)", { myUserId, yourUserId })
+      .groupBy("chatRoom.chatRoomId")
+      .having("COUNT(DISTINCT user.userId) = 2")
+      .getMany();
+
+    console.log("room", room);
 
     // 없으면 만들기
-    if (room.length == 0) {
-      // 해당 유저 찾기
+    if (!room) {
+      console.log("해당 채팅방 없음");
 
+      // 해당 유저 찾기
       const [userA, userB] = await Promise.all([
         this.userRepository.findOne({ where: { userId: myUserId } }),
         this.userRepository.findOne({ where: { userId: yourUserId } })
@@ -73,11 +104,11 @@ export class ChatService {
     const messages = await this.messageRepository.find({
       where: {
         chatRoom: {
-          chatRoomId: room[0].chatRoom.chatRoomId,
+          chatRoomId: room[0].chatRoom.chatRoomId
         }
       },
       relations: ["sender"]
-    })
+    });
 
     // 방 정보, 지난 메시지 리턴
     return {

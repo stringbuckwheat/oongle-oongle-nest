@@ -28,7 +28,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
       throw new UnauthorizedException("토큰 만료");
     }
 
-    const user = await this.authService.validateUser(payload.username);
+    console.log("payload", payload);
+
+    const user = await this.authService.findByUserId(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException();

@@ -45,6 +45,15 @@ export class UserService {
     });
   }
 
+  // 회원 조회 2
+  async findByUserId(userId: number): Promise<User> {
+    return await this.userRepository.findOne({
+      where: {
+        userId
+      }
+    });
+  }
+
   // 회원 정보 확인
 
 

@@ -1,5 +1,6 @@
-import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { User } from "../../user/user.entity";
+import { Message } from "./message.entity";
 
 @Entity()
 export class ChatRoom {
@@ -12,6 +13,9 @@ export class ChatRoom {
   @ManyToMany(() => User)
   @JoinTable()
   participants: User[];
+
+  @OneToMany(() => Message, message => message.chatRoom)
+  messages: Message[];
 
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
