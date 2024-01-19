@@ -23,100 +23,72 @@ export class ChatService {
   }
 
   async getAllByUserId(user): Promise<ChatRoom[]> {
-    console.log("getAllByUserId ========");
     // 해당 유저가 속한 모든 채팅방 목록
     // 가장 최근 메시지를 포함해서 DESC
-    const chatRooms = await this.userChatRoomRepository.createQueryBuilder("userChatRoom")
+    const chatRooms = await this.userChatRoomRepository
+      .createQueryBuilder("userChatRoom")
       .innerJoinAndSelect("userChatRoom.user", "user")
       .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
       .leftJoinAndSelect("chatRoom.messages", "messages")
       .where("user.userId = :userId", { userId: user.userId })
       .getMany();
 
-    console.log("chatRooms", chatRooms)
-
-    return chatRooms.map((userChatRoom) => userChatRoom.chatRoom);
+    // map vs. flatMap
+    return chatRooms.flatMap((userChatRoom) => userChatRoom.chatRoom);
   }
 
   async getRoomByChatRoomId(chatRoomId: number): Promise<any> {
     // chatRoom 정보
-    const chatRoom = this.chatRoomRepository.findOne({
+    const chatRoom = await this.chatRoomRepository.findOne({
       where: {
         chatRoomId
       },
-      relations: ["participants", "messages"]
-    })
-
-    console.log("chatRoom", chatRoom);
-
-    return chatRoom;
-  }
-
-  async getRoomByUserId(@Body() data: { myUserId: number, yourUserId: number }): Promise<ChatRoomDto> {
-    const { myUserId, yourUserId } = data;
-    console.log("data", data);
-
-    // 내 userId와 상대의 userId로 이루어진 1:1 채팅 찾기
-    const room = await this.userChatRoomRepository.createQueryBuilder("userChatRoom")
-      .innerJoin("userChatRoom.user", "user")
-      .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
-      .where("user.userId IN (:myUserId, :yourUserId)", { myUserId, yourUserId })
-      .groupBy("chatRoom.chatRoomId")
-      .having("COUNT(DISTINCT user.userId) = 2")
-      .getMany();
-
-    console.log("room", room);
-
-    // 없으면 만들기
-    if (!room) {
-      console.log("해당 채팅방 없음");
-
-      // 해당 유저 찾기
-      const [userA, userB] = await Promise.all([
-        this.userRepository.findOne({ where: { userId: myUserId } }),
-        this.userRepository.findOne({ where: { userId: yourUserId } })
-      ]);
-
-      // chatRoom 제목 짓기
-      const name = `${userA.name}, ${userB.name}`;
-
-      // chatRoom 생성
-      const chatRoom = this.chatRoomRepository.create({ name });
-      const savedChatRoom = await this.chatRoomRepository.save(chatRoom);
-
-      // 채팅방 참가자 추가
-      await Promise.all([
-        this.addUserToChatRoom(userA, savedChatRoom),
-        this.addUserToChatRoom(userB, savedChatRoom)
-      ]);
-
-      // 방 정보, 상대 정보 리턴
-      return {
-        title: userB.name, // 상대방 이름
-        chatRoomId: savedChatRoom.chatRoomId,
-        participants: 2,
-        messages: []
-      };
-    }
-
-    // 이미 존재하는 채팅방의 경우
-    const user = await this.userRepository.findOne({ where: { userId: yourUserId } });
-    const messages = await this.messageRepository.find({
-      where: {
-        chatRoom: {
-          chatRoomId: room[0].chatRoom.chatRoomId
-        }
-      },
-      relations: ["sender"]
+      relations: ["participants", "messages", "messages.sender"]
     });
 
-    // 방 정보, 지난 메시지 리턴
     return {
-      title: user.name, // 상대방 이름
-      chatRoomId: room[0].chatRoom.chatRoomId,
-      participants: 2,
-      messages: messages.map((message) => new MessageDto(message))
+      title: chatRoom.name,
+      chatRoomId: chatRoom.chatRoomId,
+      participants: chatRoom.participants.length,
+      messages: chatRoom.messages.map((message) => new MessageDto(message))
     };
+  }
+
+  async getRoomByUserIds(userIds: number[]): Promise<ChatRoom> {
+    const existingChatRoom = await this.userChatRoomRepository
+      .createQueryBuilder("userChatRoom")
+      .innerJoin("userChatRoom.user", "user")
+      .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
+
+      .where("userChatRoom.user.userId IN (:...userIds)", {userIds})
+      .groupBy("userChatRoom.chatRoom.chatRoomId")
+      .having("COUNT(userChatRoom.user.userId) = :count", {count: userIds.length})
+      .getOne();
+
+    // 해당 채팅방 이미 존재
+    if (existingChatRoom) {
+      return existingChatRoom.chatRoom;
+    }
+
+    // 없으면 create
+    // 해당 유저 찾기
+    const users = await Promise.all(userIds.map(userId =>
+      this.userRepository.findOne({ where: { userId } })));
+
+    // chatRoom 제목짓기
+    const name = users.map(user => user.name).join(', ');
+
+    // chatRoom 생성
+    const chatRoom = this.chatRoomRepository.create({ name });
+    const savedChatRoom = await this.chatRoomRepository.save(chatRoom);
+
+    // 채팅방 참가자 추가
+    await Promise.all(
+      users.map((user) => this.addUserToChatRoom(user, savedChatRoom))
+    )
+
+    // 방 정보, 상대 정보 리턴
+    return savedChatRoom;
   }
 
   // 채팅방 구성원 추가
@@ -146,21 +118,5 @@ export class ChatService {
     const savedMessage = await this.messageRepository.save(message);
 
     return new MessageDto(savedMessage);
-  }
-
-  async joinRoom(userId: number, chatRoomId: number): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { userId } });
-    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId } });
-
-    if (!user || !chatRoom) {
-      throw new NotFoundException("그런 방이나 사용자 없음");
-    }
-
-    const existingEntry = await this.userChatRoomRepository.findOne({ where: { user, chatRoom } });
-
-    if (!existingEntry) {
-      const userChatRoomEntry = this.userChatRoomRepository.create({ user, chatRoom });
-      await this.userChatRoomRepository.save(userChatRoomEntry);
-    }
   }
 }

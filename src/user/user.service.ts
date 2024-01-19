@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./user.entity";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
+import { AuthUser } from "../auth/dto/authUser.dto";
 
 @Injectable()
 export class UserService {
@@ -14,12 +15,7 @@ export class UserService {
 
   // 아이디 중복 검사
   async hasSameUsername(inputUsername: string): Promise<string> {
-    const user = await this.userRepository.findOne({
-      where: {
-        username: inputUsername
-      }
-    });
-
+    const user = await this.findByUsername(inputUsername);
     return user?.username || null;
   }
 
@@ -29,14 +25,14 @@ export class UserService {
 
     const savedUser = await this.userRepository.save({
       ...user,
-      password: hashedPassword,
+      password: hashedPassword
     });
 
     const { password, ...response } = savedUser;
     return response;
   }
 
-  // 회원 조회
+  // username으로 회원 조회
   async findByUsername(username: string): Promise<User> {
     return await this.userRepository.findOne({
       where: {
@@ -45,7 +41,7 @@ export class UserService {
     });
   }
 
-  // 회원 조회 2
+  // User PK로 회원 조회
   async findByUserId(userId: number): Promise<User> {
     return await this.userRepository.findOne({
       where: {
@@ -54,7 +50,19 @@ export class UserService {
     });
   }
 
-  // 회원 정보 확인
+  // username으로 회원 검색
+  // 내가 아닌 사람 중에서 WHERE username LIKE %username%
+  async searchByUsernameExceptMe(username: string, user: AuthUser): Promise<Partial<User>[]> {
+    const users = await this.userRepository.createQueryBuilder("user")
+      .where("username LIKE :username", { username: `%${username}%` })
+      .andWhere("username != :myUsername", {myUsername: user.username})
+      .getMany();
+
+    return users.map((user) => {
+      const { password, ...result } = user;
+      return result;
+    });
+  }
 
 
   // 회원 정보 수정

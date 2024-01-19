@@ -18,4 +18,10 @@ export class ChatController {
   getAllByUserId(@AuthUser() user): Promise<ChatRoom[]> {
     return this.chatService.getAllByUserId(user);
   }
+
+  @Post("/group")
+  @UseGuards(AuthGuard("jwt"))
+  createGroupChat(@Body() userIds: number[], @AuthUser() user): Promise<ChatRoom> {
+    return this.chatService.getRoomByUserIds([...userIds, user.userId]);
+  }
 }

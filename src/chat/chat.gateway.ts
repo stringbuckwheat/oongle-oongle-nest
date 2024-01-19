@@ -33,8 +33,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param payload
    */
   @SubscribeMessage("chat/join/private")
-  async handleJoinPrivateRoom(client: Socket, payload: { myUserId: number, yourUserId: number }) {
-    const res = await this.chatService.getRoomByUserId(payload);
+  async handleJoinPrivateRoom(client: Socket, payload: number[]) {
+    const res = await this.chatService.getRoomByUserIds(payload);
     client.join(`room-${res.chatRoomId}`);
 
     this.server.to(`room-${res.chatRoomId}`).emit("chat/user/join", res);
