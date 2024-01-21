@@ -1,4 +1,4 @@
-import { Body, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ChatRoom } from "./entity/chat-room.entity";
 import { Repository } from "typeorm";
@@ -6,7 +6,8 @@ import { Message } from "./entity/message.entity";
 import { UserChatRoom } from "./entity/user-chat-room.entity";
 import { User } from "../user/user.entity";
 import { ChatRoomDto } from "./dto/chat-room.dto";
-import { MessageDto } from "./dto/message.dto";
+import { MessageResponseDto } from "./dto/message-response.dto";
+import { MessageRequestDto } from "./dto/message-request.dto";
 
 @Injectable()
 export class ChatService {
@@ -37,7 +38,9 @@ export class ChatService {
     return chatRooms.flatMap((userChatRoom) => userChatRoom.chatRoom);
   }
 
-  async getRoomByChatRoomId(chatRoomId: number): Promise<any> {
+  async getRoomByChatRoomId(chatRoomId: number): Promise<ChatRoomDto> {
+    console.log("chatRoomId", chatRoomId);
+
     // chatRoom 정보
     const chatRoom = await this.chatRoomRepository.findOne({
       where: {
@@ -46,29 +49,42 @@ export class ChatService {
       relations: ["participants", "messages", "messages.sender"]
     });
 
-    return {
-      title: chatRoom.name,
-      chatRoomId: chatRoom.chatRoomId,
-      participants: chatRoom.participants.length,
-      messages: chatRoom.messages.map((message) => new MessageDto(message))
-    };
+    console.log("chatRoom", chatRoom);
+
+    return new ChatRoomDto(chatRoom);
   }
 
-  async getRoomByUserIds(userIds: number[]): Promise<ChatRoom> {
+  /**
+   *
+   * @param userIds
+   */
+
+  //SELECT *
+  // FROM user_chat_room userChatRoom
+  // INNER JOIN user ON userChatRoom.userUserId = user.userId
+  // INNER JOIN chat_room chatRoom ON userChatRoom.chatRoomChatRoomId  = chatRoom.chatRoomId
+  // LEFT JOIN message messages ON chatRoom.chatRoomId = messages.chatRoomChatRoomId
+  // WHERE userChatRoom.userUserId IN (1, 7)
+  // GROUP BY userChatRoom.chatRoomChatRoomId
+  // HAVING COUNT(DISTINCT userChatRoom.userUserId) = 2;
+  async getRoomByUserIds(userIds: number[]): Promise<ChatRoomDto> {
     const existingChatRoom = await this.userChatRoomRepository
       .createQueryBuilder("userChatRoom")
-      .innerJoin("userChatRoom.user", "user")
       .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
-
-      .where("userChatRoom.user.userId IN (:...userIds)", {userIds})
+      .where("userChatRoom.user.userId IN (:...userIds)", { userIds })
       .groupBy("userChatRoom.chatRoom.chatRoomId")
-      .having("COUNT(userChatRoom.user.userId) = :count", {count: userIds.length})
+      .having("COUNT(userChatRoom.user.userId) = :count", { count: userIds.length })
       .getOne();
+
+    console.log("existingChatRoom", existingChatRoom);
 
     // 해당 채팅방 이미 존재
     if (existingChatRoom) {
-      return existingChatRoom.chatRoom;
+      console.log("채팅방 이미 존재")
+      return await this.getRoomByChatRoomId(existingChatRoom.chatRoom.chatRoomId);
     }
+
+    console.log("채팅방 없음")
 
     // 없으면 create
     // 해당 유저 찾기
@@ -76,7 +92,7 @@ export class ChatService {
       this.userRepository.findOne({ where: { userId } })));
 
     // chatRoom 제목짓기
-    const name = users.map(user => user.name).join(', ');
+    const name = users.map(user => user.name).join(", ");
 
     // chatRoom 생성
     const chatRoom = this.chatRoomRepository.create({ name });
@@ -85,10 +101,10 @@ export class ChatService {
     // 채팅방 참가자 추가
     await Promise.all(
       users.map((user) => this.addUserToChatRoom(user, savedChatRoom))
-    )
+    );
 
     // 방 정보, 상대 정보 리턴
-    return savedChatRoom;
+    return new ChatRoomDto(savedChatRoom);
   }
 
   // 채팅방 구성원 추가
@@ -101,8 +117,10 @@ export class ChatService {
     await this.userChatRoomRepository.save(userChatRoomEntry);
   }
 
-  async saveMessage(roomId: number, senderId: number, content: string): Promise<MessageDto> {
-    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: roomId } });
+  async saveMessage(messageReq: MessageRequestDto): Promise<MessageResponseDto> {
+    const { chatRoomId, senderId } = messageReq;
+
+    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: chatRoomId } });
     const sender = await this.userRepository.findOne({ where: { userId: senderId } });
 
     if (!chatRoom || !sender) {
@@ -112,11 +130,36 @@ export class ChatService {
     const message = this.messageRepository.create({
       chatRoom,
       sender,
-      content
+      content: messageReq.message
     });
 
     const savedMessage = await this.messageRepository.save(message);
 
-    return new MessageDto(savedMessage);
+    return new MessageResponseDto(savedMessage, chatRoomId);
+  }
+
+  // in memory에 메시지 10개 이상 쌓이면 DB 저장
+  async saveMessages(inMemoryMessages: MessageRequestDto[]): Promise<void> {
+    const { chatRoomId, senderId } = inMemoryMessages[0];
+
+    // relations
+    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: chatRoomId } });
+    const sender = await this.userRepository.findOne({ where: { userId: senderId } });
+
+    if (!chatRoom || !sender) {
+      throw new NotFoundException("그런 방이나 사용자 없음");
+    }
+
+    // 전체 엔티티 생성
+    const entities = inMemoryMessages.map((message) => {
+      return this.messageRepository.create({
+        chatRoom,
+        sender,
+        content: message.message
+      });
+    });
+
+    // DB 저장
+    await this.messageRepository.save(entities);
   }
 }

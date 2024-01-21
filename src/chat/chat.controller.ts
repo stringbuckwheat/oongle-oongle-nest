@@ -3,6 +3,7 @@ import { ChatService } from "./chat.service";
 import { AuthGuard } from "@nestjs/passport";
 import AuthUser from "../auth/user.decorator";
 import { ChatRoom } from "./entity/chat-room.entity";
+import { ChatRoomDto } from "./dto/chat-room.dto";
 
 @Controller("chat")
 export class ChatController {
@@ -19,9 +20,9 @@ export class ChatController {
     return this.chatService.getAllByUserId(user);
   }
 
-  @Post("/group")
+  @Post()
   @UseGuards(AuthGuard("jwt"))
-  createGroupChat(@Body() userIds: number[], @AuthUser() user): Promise<ChatRoom> {
+  createGroupChat(@Body() userIds: number[], @AuthUser() user): Promise<ChatRoomDto> {
     return this.chatService.getRoomByUserIds([...userIds, user.userId]);
   }
 }
