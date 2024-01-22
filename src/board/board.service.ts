@@ -163,7 +163,7 @@ export class BoardService {
   }
 
   async delete(id: number): Promise<void> {
-    await this.findById(id); // Check if board exists
+    await this.findById(id);
     await this.boardRepository.delete(id);
   }
 }

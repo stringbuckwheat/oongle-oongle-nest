@@ -10,6 +10,6 @@ export class Like {
   @ManyToOne(() => Board, board => board.likes, { onDelete: 'CASCADE' })
   board: Board;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: "CASCADE" })
   user: User;
 }

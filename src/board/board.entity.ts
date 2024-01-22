@@ -33,7 +33,7 @@ export class Board {
   password: string;
 
   // 회원일 시 FK
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: "CASCADE" })
   user: User;
 
   @CreateDateColumn() // == @CreatedDate in Spring Data JPA

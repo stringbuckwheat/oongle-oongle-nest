@@ -7,7 +7,7 @@ export class Message {
   @PrimaryGeneratedColumn()
   messageId: number;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: "CASCADE" })
   sender: User;
 
   @ManyToOne(() => ChatRoom)

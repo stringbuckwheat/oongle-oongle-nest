@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./user.entity";
 import { Repository } from "typeorm";
@@ -55,7 +55,7 @@ export class UserService {
   async searchByUsernameExceptMe(username: string, user: AuthUser): Promise<Partial<User>[]> {
     const users = await this.userRepository.createQueryBuilder("user")
       .where("username LIKE :username", { username: `%${username}%` })
-      .andWhere("username != :myUsername", {myUsername: user.username})
+      .andWhere("username != :myUsername", { myUsername: user.username })
       .getMany();
 
     return users.map((user) => {
@@ -64,12 +64,49 @@ export class UserService {
     });
   }
 
-
   // 회원 정보 수정
-  // 수정 전 비밀번호 확인
-  // async verifyUser(rawPassword: string): Promise<>
+  async update(userRequest: { name: string, userId: number }): Promise<Partial<User>> {
+    const prevUser = await this.findByUserId(userRequest.userId);
 
-  // 회원 정보 수정
+    if (!prevUser) {
+      throw new NotFoundException("그런 회원 없음");
+    }
+
+    const user = await this.userRepository.save({ ...prevUser, name: userRequest.name });
+    const { password, ...result } = user;
+
+    return result;
+  }
+
+  // 비밀번호 확인
+  async verifyUserByPassword(userRequest: { password: string, userId: number }): Promise<{ isPasswordMatch: boolean, message: string }> {
+    const user = await this.findByUserId(userRequest.userId);
+    // raw, encrypt 순
+    const isPasswordMatch = await bcrypt.compare(userRequest.password, user.password);
+
+    if (!isPasswordMatch) {
+      throw new UnauthorizedException("비밀번호 틀림");
+    }
+
+    return { isPasswordMatch, message: "비밀번호 확인 완료!" };
+  }
+
+  // 비밀번호 바꾸기
+  async changePassword(userRequest: { password: string, userId: number }): Promise<Partial<User>> {
+    // 비밀번호 암호화
+    const encrypt = await bcrypt.hash(userRequest.password, 10);
+
+    const prevUser = await this.findByUserId(userRequest.userId);
+    const user = await this.userRepository.save({ ...prevUser, password: encrypt });
+
+    const { password, ...result } = user;
+
+    return result;
+  }
 
   // 탈퇴
+  async delete(userId: number): Promise<void> {
+    await this.findByUserId(userId);
+    await this.userRepository.delete(userId);
+  }
 }
