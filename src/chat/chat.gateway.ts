@@ -10,6 +10,7 @@ import { ChatService } from "./chat.service";
 import { MessageRequestDto } from "./dto/message-request.dto";
 
 @WebSocketGateway({
+  namespace: "chat", // 네임스페이스 설정
   cors: {
     origin: ["http://localhost:3000"]
   }
@@ -23,28 +24,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private inMemoryMessages: MessageRequestDto[] = [];
   private messageSavingLimit: number = 10;
 
-  private chatClients = [];
-
+  private chatClients: Set<string> = new Set();
 
   constructor(private readonly chatService: ChatService) {
   }
 
   handleConnection(socket: Socket) {
     console.log(`Chat Client connected: ${socket.id}`);
-    this.chatClients.push(socket.id);
-    console.log("chatClients: ", this.chatClients.length);
+
+    if (!this.chatClients.has(socket.id)) {
+      this.chatClients.add(socket.id);
+      console.log("chatClients: ", this.chatClients.size);
+    } else {
+      // 중복된 연결이면 disconnect
+      console.log(`Duplicate connection detected. Disconnecting client: ${socket.id}`);
+      socket.disconnect();
+    }
+
+    console.log("chatClients: ", this.chatClients.size);
   }
 
   async handleDisconnect(socket: Socket) {
-    console.log(`Client disconnected: ${socket.id}`);
+    console.log(`* Client disconnected: ${socket.id}`);
 
-    this.chatClients = this.chatClients.filter((id) => id !== socket.id);
-    console.log("chatClients: ", this.chatClients.length);
+    this.chatClients.delete(socket.id);
+    console.log("* chatClients: ", this.chatClients.size);
 
     if (this.inMemoryMessages.length > 0) {
-      console.log("starting saving messages in databases...");
+      console.log("* starting saving messages in databases...");
+      console.log("* inMemoryMessages.length", this.inMemoryMessages.length);
       await this.chatService.saveMessages(this.inMemoryMessages);
-      console.log("저장 완료!");
+      console.log("* 저장 완료!");
+      this.inMemoryMessages = [];
     }
 
     socket.disconnect();
@@ -55,34 +66,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param client
    * @param payload
    */
-  @SubscribeMessage("chat/join/private")
+  @SubscribeMessage("join/private")
   async handleJoinPrivateRoom(client: Socket, payload: number[]) {
+    console.log("handleJoinPrivateRoom");
     const res = await this.chatService.getRoomByUserIds(payload);
     client.join(`room-${res.chatRoomId}`);
 
-    this.server.to(`room-${res.chatRoomId}`).emit("chat/user/join", res);
+    this.server.to(`room-${res.chatRoomId}`).emit("user/join", res);
   }
 
-  @SubscribeMessage("chat/join")
+  @SubscribeMessage("join")
   async joinChatRoom(client: Socket, payload: { chatRoomId: number }) {
     const res = await this.chatService.getRoomByChatRoomId(payload.chatRoomId);
     client.join(`room-${res.chatRoomId}`);
 
-    this.server.to(`room-${res.chatRoomId}`).emit("chat/user/join", res);
+    this.server.to(`room-${res.chatRoomId}`).emit("user/join", res);
   }
 
-  @SubscribeMessage("chat/send")
+  @SubscribeMessage("send")
   async handleMessage(client: Socket, payload: MessageRequestDto) {
     console.log("handle message payload", payload);
+
+    // 클라이언트의 on 메소드와 연결
+    this.server.to(`room-${payload.chatRoomId}`).emit("receive", payload);
+
     // 메모리에 임시 저장
     this.inMemoryMessages.push(payload);
 
-    // 클라이언트의 on 메소드와 연결
-    this.server.to(`room-${payload.chatRoomId}`).emit("chat/receive", payload);
-
     // 조건 만족 시 DB에 저장
     if (this.inMemoryMessages.length >= this.messageSavingLimit) {
-      console.log("starting saving messages in databases...");
+      console.log("starting saving messages in databases... -> ", client.id);
       await this.chatService.saveMessages(this.inMemoryMessages);
       this.inMemoryMessages = [];
     }

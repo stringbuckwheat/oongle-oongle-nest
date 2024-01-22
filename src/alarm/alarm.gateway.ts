@@ -10,6 +10,7 @@ import {
 import { CommentCreatedAlarm } from "./dto/commentCreatedAlarm.dto";
 
 @WebSocketGateway({
+  namespace: 'alarm',
   cors: {
     origin: ['http://localhost:3000']
   }
@@ -24,15 +25,15 @@ export class AlarmGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   async handleConnection(client: Socket, ...args: any[]) {
-    console.log(`Alarm Client connected: ${client.id}`);
+    // console.log(`= Alarm Client connected: ${client.id}`);
     this.alarmClients.push(client.id);
-    console.log("alarmClients: ", this.alarmClients.length);
+    // console.log("= alarmClients: ", this.alarmClients.length);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Alarm Client disconnect: ${client.id}`);
+    // console.log(`= Alarm Client disconnect: ${client.id}`);
     this.alarmClients = this.alarmClients.filter((id) => id !== client.id);
-    console.log("alarmClients: ", this.alarmClients.length);
+    // console.log("= alarmClients: ", this.alarmClients.length);
     client.disconnect();
   }
 

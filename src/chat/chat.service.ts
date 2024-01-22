@@ -49,7 +49,7 @@ export class ChatService {
       relations: ["participants", "messages", "messages.sender"]
     });
 
-    console.log("chatRoom", chatRoom);
+    // console.log("chatRoom", chatRoom);
 
     return new ChatRoomDto(chatRoom);
   }
@@ -76,15 +76,15 @@ export class ChatService {
       .having("COUNT(userChatRoom.user.userId) = :count", { count: userIds.length })
       .getOne();
 
-    console.log("existingChatRoom", existingChatRoom);
+    // console.log("existingChatRoom", existingChatRoom);
 
     // 해당 채팅방 이미 존재
     if (existingChatRoom) {
-      console.log("채팅방 이미 존재")
+      // console.log("채팅방 이미 존재")
       return await this.getRoomByChatRoomId(existingChatRoom.chatRoom.chatRoomId);
     }
 
-    console.log("채팅방 없음")
+    // console.log("채팅방 없음")
 
     // 없으면 create
     // 해당 유저 찾기
@@ -117,29 +117,9 @@ export class ChatService {
     await this.userChatRoomRepository.save(userChatRoomEntry);
   }
 
-  async saveMessage(messageReq: MessageRequestDto): Promise<MessageResponseDto> {
-    const { chatRoomId, senderId } = messageReq;
-
-    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: chatRoomId } });
-    const sender = await this.userRepository.findOne({ where: { userId: senderId } });
-
-    if (!chatRoom || !sender) {
-      throw new NotFoundException("그런 방이나 사용자 없음");
-    }
-
-    const message = this.messageRepository.create({
-      chatRoom,
-      sender,
-      content: messageReq.message
-    });
-
-    const savedMessage = await this.messageRepository.save(message);
-
-    return new MessageResponseDto(savedMessage, chatRoomId);
-  }
-
   // in memory에 메시지 10개 이상 쌓이면 DB 저장
   async saveMessages(inMemoryMessages: MessageRequestDto[]): Promise<void> {
+    console.log("save messages")
     const { chatRoomId, senderId } = inMemoryMessages[0];
 
     // relations
@@ -152,6 +132,8 @@ export class ChatService {
 
     // 전체 엔티티 생성
     const entities = inMemoryMessages.map((message) => {
+      console.log("message", message);
+
       return this.messageRepository.create({
         chatRoom,
         sender,
