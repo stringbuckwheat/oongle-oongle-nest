@@ -26,8 +26,11 @@ export class CommentService {
     const board = await this.boardRepository.findOneOrFail({
       where: {
         boardId: commentData.boardId
-      }
+      },
+      relations: ["user"]
     });
+
+    console.log("board", board);
 
     const commonOptions = {
       content: commentData.content,
@@ -37,7 +40,7 @@ export class CommentService {
     if (commentData.password) {
       const encrypt = await bcrypt.hash(commentData.password, 10);
       const passwordOptions = { ...commonOptions, name: commentData.name, password: encrypt };
-      return this.createCommentWithParent(commentData.commentId, passwordOptions);
+      return this.createCommentWithParent(commentData.commentId, passwordOptions, board.user.userId);
     }
 
     const user = await this.userRepository.findOneOrFail({
@@ -47,10 +50,10 @@ export class CommentService {
     });
 
     const userOptions = { ...commonOptions, user };
-    return this.createCommentWithParent(commentData.commentId, userOptions);
+    return this.createCommentWithParent(commentData.commentId, userOptions, board.user.userId);
   }
 
-  private async createCommentWithParent(commentId: number, options: Partial<Comment>): Promise<CommentResponseDto> {
+  private async createCommentWithParent(commentId: number, options: Partial<Comment>, boardUserId: number): Promise<CommentResponseDto> {
     if (commentId) {
       const parentComment = await this.findById(commentId);
       options.parentComment = parentComment;
@@ -60,7 +63,7 @@ export class CommentService {
     const comment = await this.commentRepository.save(entity);
 
     // 댓글 작성 시 글 주인에게 socket 알림
-    this.alarmGateway.handleCommentCreatedEvent(new CommentCreatedAlarm(comment));
+    this.alarmGateway.handleCommentCreatedEvent(new CommentCreatedAlarm(comment), boardUserId);
 
     return new CommentResponseDto(comment);
   }

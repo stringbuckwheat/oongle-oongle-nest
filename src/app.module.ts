@@ -9,9 +9,10 @@ import { LikeModule } from './like/like.module';
 import { CommentModule } from './comment/comment.module';
 import { AlarmModule } from './alarm/alarm.module';
 import { ChatModule } from "./chat/chat.module";
+import { SearchModule } from './search/search.module';
 
 @Module({
-  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule, CommentModule, AlarmModule, ChatModule],
+  imports: [ConfigAppModule, DatabaseModule, UserModule, BoardModule, AuthModule, LikeModule, CommentModule, AlarmModule, ChatModule, SearchModule],
   controllers: [AppController,],
   providers: [],
 })

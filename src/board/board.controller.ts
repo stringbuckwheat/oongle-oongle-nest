@@ -53,12 +53,4 @@ export class BoardController {
   remove(@Param("id") id: number) {
     return this.boardService.delete(id);
   }
-
-  // @Get("/search")
-  // search(@Query("year") searchingYear: number) {
-  //   // id보다 밑에 있으면 'search'가 id라고 생각함...
-  //   // search?year=2000
-  //   return `we are searching a movie year: ${searchingYear}`;
-  // }
-
 }
