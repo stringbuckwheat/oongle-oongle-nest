@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ChatRoom } from "./entity/chat-room.entity";
-import { Repository } from "typeorm";
+import { LessThan, Repository } from "typeorm";
 import { Message } from "./entity/message.entity";
 import { UserChatRoom } from "./entity/user-chat-room.entity";
 import { User } from "../user/user.entity";
 import { ChatRoomDto } from "./dto/chat-room.dto";
-import { MessageResponseDto } from "./dto/message-response.dto";
 import { MessageRequestDto } from "./dto/message-request.dto";
+import { UserMessageRead } from "./entity/user-message-read.entity";
+import { AlarmGateway } from "../alarm/alarm.gateway";
 
 @Injectable()
 export class ChatService {
@@ -19,7 +20,10 @@ export class ChatService {
     @InjectRepository(UserChatRoom)
     private readonly userChatRoomRepository: Repository<UserChatRoom>,
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserMessageRead)
+    private readonly userMessageReadRepository: Repository<UserMessageRead>,
+    private readonly alarmGateway: AlarmGateway
   ) {
   }
 
@@ -49,47 +53,29 @@ export class ChatService {
       relations: ["participants", "messages", "messages.sender"]
     });
 
-    // console.log("chatRoom", chatRoom);
-
     return new ChatRoomDto(chatRoom);
   }
 
-  /**
-   *
-   * @param userIds
-   */
-
-  //SELECT *
-  // FROM user_chat_room userChatRoom
-  // INNER JOIN user ON userChatRoom.userUserId = user.userId
-  // INNER JOIN chat_room chatRoom ON userChatRoom.chatRoomChatRoomId  = chatRoom.chatRoomId
-  // LEFT JOIN message messages ON chatRoom.chatRoomId = messages.chatRoomChatRoomId
-  // WHERE userChatRoom.userUserId IN (1, 7)
-  // GROUP BY userChatRoom.chatRoomChatRoomId
-  // HAVING COUNT(DISTINCT userChatRoom.userUserId) = 2;
-  async getRoomByUserIds(userIds: number[]): Promise<ChatRoomDto> {
+  async createOrFindChatRoomByUserIds(userIds: number[]): Promise<ChatRoomDto> {
     const existingChatRoom = await this.userChatRoomRepository
       .createQueryBuilder("userChatRoom")
       .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
-      .where("userChatRoom.user.userId IN (:...userIds)", { userIds })
       .groupBy("userChatRoom.chatRoom.chatRoomId")
-      .having("COUNT(userChatRoom.user.userId) = :count", { count: userIds.length })
+      .having("COUNT(DISTINCT userChatRoom.user.userId) = :count AND userChatRoom.user.userId IN (:...userIds)"
+        , { count: userIds.length, userIds })
       .getOne();
-
-    // console.log("existingChatRoom", existingChatRoom);
 
     // 해당 채팅방 이미 존재
     if (existingChatRoom) {
-      // console.log("채팅방 이미 존재")
+      console.log("채팅방 이미 존재");
       return await this.getRoomByChatRoomId(existingChatRoom.chatRoom.chatRoomId);
     }
 
-    // console.log("채팅방 없음")
+    console.log("채팅방 없음");
 
     // 없으면 create
     // 해당 유저 찾기
-    const users = await Promise.all(userIds.map(userId =>
-      this.userRepository.findOne({ where: { userId } })));
+    const users = await Promise.all(userIds.map(userId => this.userRepository.findOne({ where: { userId } })));
 
     // chatRoom 제목짓기
     const name = users.map(user => user.name).join(", ");
@@ -111,37 +97,98 @@ export class ChatService {
   private async addUserToChatRoom(user: User, chatRoom: ChatRoom): Promise<void> {
     const userChatRoomEntry = this.userChatRoomRepository.create({
       user,
-      chatRoom: chatRoom
+      chatRoom
     });
 
     await this.userChatRoomRepository.save(userChatRoomEntry);
   }
 
-  // in memory에 메시지 10개 이상 쌓이면 DB 저장
-  async saveMessages(inMemoryMessages: MessageRequestDto[]): Promise<void> {
-    console.log("save messages")
-    const { chatRoomId, senderId } = inMemoryMessages[0];
+  async saveMessage(chatMessage: MessageRequestDto): Promise<Message> {
+    console.log("save messages");
+    const { chatRoomId, senderId, message } = chatMessage;
 
-    // relations
-    const chatRoom = await this.chatRoomRepository.findOne({ where: { chatRoomId: chatRoomId } });
-    const sender = await this.userRepository.findOne({ where: { userId: senderId } });
+    const [chatRoom, sender] = await Promise.all([
+      this.chatRoomRepository.findOne({ where: { chatRoomId } }),
+      this.userRepository.findOne({ where: { userId: senderId } })
+    ]);
+
+    console.log("chatRoom", chatRoom);
 
     if (!chatRoom || !sender) {
+      console.log("그런 방이나 사용자 없음");
       throw new NotFoundException("그런 방이나 사용자 없음");
     }
 
-    // 전체 엔티티 생성
-    const entities = inMemoryMessages.map((message) => {
-      console.log("message", message);
-
-      return this.messageRepository.create({
-        chatRoom,
-        sender,
-        content: message.message
-      });
+    // 엔티티 생성
+    const newMessage = this.messageRepository.create({
+      chatRoom,
+      sender,
+      content: message
     });
 
     // DB 저장
-    await this.messageRepository.save(entities);
+    const savedMessage = await this.messageRepository.save(newMessage);
+
+    console.log("메시지 저장 완료, 참가자 확인 여부 저장 시작");
+    const ucrs = await this.userChatRoomRepository.createQueryBuilder("ucr")
+      .innerJoinAndSelect("ucr.user", "user")
+      .innerJoin("ucr.chatRoom", "chatRoom")
+      .where("chatRoom.chatRoomId = :chatRoomId", { chatRoomId })
+      .getMany();
+
+    console.log("ucrs", ucrs);
+
+    const participants = ucrs.map((ucr) => ucr.user);
+
+    // 채팅방 참가자에 대해 확인 여부 저장
+    const promises = participants.map(async participant => {
+      const userMessageRead = this.userMessageReadRepository.create({
+        user: participant,
+        message: savedMessage,
+        readAt: participant.userId == senderId ? new Date() : null // 메시지 보낸 사람은 바로 읽음 처리
+      });
+
+      await this.userMessageReadRepository.save(userMessageRead);
+    });
+
+    await Promise.all(promises);
+
+    // socket 알림
+    this.alarmGateway.handleNewChatEvent(participants, savedMessage);
+
+    return savedMessage;
+  }
+
+  // 읽음 처리
+  // 해당 Message보다 createdAt이 과거인 모든 메시지 읽음 처리
+  async markedMessageAsRead(messageId: number, userId: number): Promise<{ messageId: number }> {
+    // 해당 유저
+    const user = await this.userRepository.findOne({
+      where: { userId }
+    });
+
+    const message = await this.messageRepository.findOne({
+      where: { messageId }
+    });
+
+    // 해당 메시지 이전의 모든 메시지 들고오기
+    const messageToMarkAsRead = await this.messageRepository.find({
+      where: {
+        chatRoom: message.chatRoom,
+        createdAt: LessThan(message.createdAt)
+      }
+    });
+
+    await Promise.all(
+      messageToMarkAsRead.map(async (messageToMark) => {
+        await this.userMessageReadRepository.save({
+          user,
+          message: messageToMark,
+          readAt: new Date()
+        });
+      })
+    );
+
+    return { messageId };
   }
 }

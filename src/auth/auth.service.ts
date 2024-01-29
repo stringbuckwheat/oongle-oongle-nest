@@ -9,6 +9,8 @@ import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
 import { LoginDto } from "./dto/login.dto";
 import { User } from "../user/user.entity";
 import { AuthUser } from "./dto/authUser.dto";
+import { UserChatRoom } from "../chat/entity/user-chat-room.entity";
+import { UserMessageRead } from "../chat/entity/user-message-read.entity";
 
 @Injectable()
 export class AuthService {
@@ -16,7 +18,11 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     @InjectRepository(Comment)
-    private readonly commentRepository: Repository<Comment>
+    private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(UserChatRoom)
+    private readonly userChatRoomRepository: Repository<UserChatRoom>,
+    @InjectRepository(UserMessageRead)
+    private readonly userMessageRepository: Repository<UserMessageRead>
   ) {
   }
 
@@ -34,6 +40,7 @@ export class AuthService {
 
     // ID, PW 검사
     if (!user || !bcrypt.compare(loginDto.password, user.password)) {
+      console.log(!user ? "그런 사용자 없음" : "비번 틀림");
       throw new UnauthorizedException();
     }
 
@@ -46,12 +53,12 @@ export class AuthService {
       userId: user.userId,
       username: user.username,
       name: user.name,
-      alarms: await this.getAlarm(user.userId)
+      alarms: await this.getCommentAlarm(user.userId)
     };
   }
 
   // 사용자 알림
-  async getAlarm(userId: number): Promise<CommentCreatedAlarm[]> {
+  async getCommentAlarm(userId: number): Promise<any> {
     const unCheckedComments = await this.commentRepository.find({
       where: {
         board: {
@@ -65,6 +72,36 @@ export class AuthService {
       relations: ["user", "board"]
     });
 
-    return unCheckedComments.map((comment) => (new CommentCreatedAlarm(comment)));
+    const unReadMessages = await this.getUnReadMessage(userId);
+
+    const result = {
+      unCheckedComments: unCheckedComments.map((comment) => new CommentCreatedAlarm(comment)),
+      unReadMessages
+    };
+
+    return result;
+  }
+
+  async getUnReadMessage(userId: number) {
+    const unReadMessages = await this.userMessageRepository
+      .createQueryBuilder("umr")
+      .innerJoin("umr.user", "user")
+      .innerJoinAndSelect("umr.message", "message")
+      .innerJoinAndSelect("message.chatRoom", "chatRoom")
+      .where("user.userId = :userId", { userId })
+      .andWhere("umr.readAt IS NULL")
+      .orderBy("umr.userMessageReadId", "DESC")
+      .getMany();
+
+    return unReadMessages.map((umr) => (
+      {
+        userMessageReadId: umr.userMessageReadId,
+        chatRoomId: umr.message.chatRoom.chatRoomId,
+        chatRoomName: umr.message.chatRoom.name,
+        messageId: umr.message.messageId,
+        message: umr.message.content,
+        createdAt: umr.message.createdAt
+      }
+    ));
   }
 }

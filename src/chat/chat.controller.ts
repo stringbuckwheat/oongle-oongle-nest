@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { ChatService } from "./chat.service";
 import { AuthGuard } from "@nestjs/passport";
 import AuthUser from "../auth/user.decorator";
@@ -10,10 +10,6 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {
   }
 
-  /**
-   * 해당 유저의 전체 채팅방 정보
-   * @param user
-   */
   @Get()
   @UseGuards(AuthGuard("jwt"))
   getAllByUserId(@AuthUser() user): Promise<ChatRoom[]> {
@@ -22,7 +18,13 @@ export class ChatController {
 
   @Post()
   @UseGuards(AuthGuard("jwt"))
-  createGroupChat(@Body() userIds: number[], @AuthUser() user): Promise<ChatRoomDto> {
-    return this.chatService.getRoomByUserIds([...userIds, user.userId]);
+  createOrFindChatRoomByUserId(@Body() userIds: number[], @AuthUser() user): Promise<ChatRoomDto> {
+    return this.chatService.createOrFindChatRoomByUserIds([...userIds, user.userId]);
+  }
+
+  @Put("message/:messageId")
+  @UseGuards(AuthGuard("jwt"))
+  markedMessageAsRead(@Param("messageId") messageId: number, @AuthUser() authUser): Promise<{messageId: number}> {
+    return this.chatService.markedMessageAsRead(messageId, authUser.userId);
   }
 }

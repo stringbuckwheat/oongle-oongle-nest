@@ -8,6 +8,9 @@ import { UserService } from "../user/user.service";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "../user/user.entity";
 import { Comment } from "../comment/comment.entity";
+import { Message } from "../chat/entity/message.entity";
+import { UserChatRoom } from "../chat/entity/user-chat-room.entity";
+import { UserMessageRead } from "../chat/entity/user-message-read.entity";
 
 @Module({
   imports: [
@@ -17,7 +20,7 @@ import { Comment } from "../comment/comment.entity";
       signOptions: { expiresIn: "1h" } // 토큰 만료 시간
     }),
     TypeOrmModule.forFeature(
-      [User, Comment]
+      [User, Comment, Message, UserChatRoom, UserMessageRead]
     ),
   ],
   providers: [AuthService, JwtStrategy, UserService,],
