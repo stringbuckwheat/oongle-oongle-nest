@@ -2,27 +2,22 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { UserService } from "../user/user.service";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
-import { Comment } from "../comment/comment.entity";
 import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
-import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
 import { LoginDto } from "./dto/login.dto";
 import { User } from "../user/user.entity";
 import { AuthUser } from "./dto/authUser.dto";
 import { UserChatRoom } from "../chat/entity/user-chat-room.entity";
-import { UserMessageRead } from "../chat/entity/user-message-read.entity";
+import { AlarmService } from "../alarm/alarm.service";
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
-    @InjectRepository(Comment)
-    private readonly commentRepository: Repository<Comment>,
-    @InjectRepository(UserChatRoom)
-    private readonly userChatRoomRepository: Repository<UserChatRoom>,
-    @InjectRepository(UserMessageRead)
-    private readonly userMessageRepository: Repository<UserMessageRead>
+    private readonly alarmService: AlarmService,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>
   ) {
   }
 
@@ -44,64 +39,53 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    // access token payload
-    const payload = { sub: user.userId, iss: "nest-board", aud: "api-server" };
-
     // JWT access token, 기본 사용자 정보
     return {
-      accessToken: this.jwtService.sign(payload),
+      accessToken: this.getAccessToken(user.userId),
       userId: user.userId,
       username: user.username,
       name: user.name,
-      alarms: await this.getCommentAlarm(user.userId)
+      alarms: await this.alarmService.getAlarms(user.userId)
     };
   }
 
-  // 사용자 알림
-  async getCommentAlarm(userId: number): Promise<any> {
-    const unCheckedComments = await this.commentRepository.find({
-      where: {
-        board: {
-          user: { userId } // 본인이 작성한 글
-        },
-        checked: false // 확인하지 않은 댓글만
-      },
-      order: {
-        createdAt: "DESC"
-      },
-      relations: ["user", "board"]
+  async validateOAuthLogin(profile: any): Promise<any> {
+    console.log("DB 로직 추가");
+
+    // profile 가공
+    const email = profile.emails ? profile.emails[0].value : null;
+    const provider = profile.provider;
+    const name = profile.displayName;
+
+    console.log("email(provider) - name: ", `${email}(${provider}) - ${name}`);
+
+    // DB에서 사용자 검색
+    let user = await this.userRepository.findOne({
+      where: { provider, email },
     });
 
-    const unReadMessages = await this.getUnReadMessage(userId);
+    if (user) {
+      // 가입된 회원이면 업데이트
+      console.log("가입된 회원");
+      user.name = name;
+      user = await this.userRepository.save(user);
+    } else {
+      // 가입되지 않은 회원이면 새로 생성
+      console.log("신규 회원");
+      user = await this.userRepository.save({ email, provider, name });
+    }
 
-    const result = {
-      unCheckedComments: unCheckedComments.map((comment) => new CommentCreatedAlarm(comment)),
-      unReadMessages
+    const userId = user.userId;
+
+    return {
+      accessToken: this.getAccessToken(userId),
+      userId,
+      name: user.name,
     };
-
-    return result;
   }
 
-  async getUnReadMessage(userId: number) {
-    const unReadMessages = await this.userMessageRepository
-      .createQueryBuilder("umr")
-      .innerJoin("umr.user", "user")
-      .innerJoinAndSelect("umr.message", "message")
-      .innerJoinAndSelect("message.chatRoom", "chatRoom")
-      .where("user.userId = :userId", { userId })
-      .andWhere("umr.readAt IS NULL")
-      .orderBy("umr.userMessageReadId", "DESC")
-      .getMany();
-
-    return unReadMessages.map((umr) => (
-      {
-        userMessageReadId: umr.userMessageReadId,
-        chatRoomId: umr.message.chatRoom.chatRoomId,
-        chatRoomName: umr.message.chatRoom.name,
-        messageId: umr.message.messageId,
-        message: umr.message.content,
-        createdAt: umr.message.createdAt
-      }
-    ));
+  private getAccessToken(userId: number): string {
+    const payload = { sub: userId, iss: "nest-board", aud: "api-server" };
+    return this.jwtService.sign(payload);
   }
 }

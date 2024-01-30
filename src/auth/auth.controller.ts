@@ -1,7 +1,6 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { AuthGuard } from "@nestjs/passport";
-import { CommentCreatedAlarm } from "../alarm/dto/commentCreatedAlarm.dto";
 import { LoginDto } from "./dto/login.dto";
 import { AuthUser } from "./dto/authUser.dto";
 
@@ -15,15 +14,14 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  @Get("/user/:id/alarm/comment")
-  @UseGuards(AuthGuard("jwt"))
-  async getCommentAlarm(@Param("id") userId): Promise<any> {
-    return this.authService.getCommentAlarm(userId);
-  }
+  @Get()
+  @UseGuards(AuthGuard("google"))
+  async googleAuth(@Req() req) {}
 
-  @Get("/user/:id/alarm/chat")
-  @UseGuards(AuthGuard("jwt"))
-  async getChatAlarm(@Param("id") userId): Promise<any> {
-    return this.authService.getUnReadMessage(userId);
+  @Post("/auth/google/callback")
+  @UseGuards(AuthGuard("google"))
+  async googleAuthRedirect(@Req() req) {
+    const user = req.user;
+    return user;
   }
 }
