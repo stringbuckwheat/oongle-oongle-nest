@@ -1,7 +1,7 @@
 import { Socket } from "socket.io";
 import {
   OnGatewayConnection,
-  OnGatewayDisconnect, OnGatewayInit,
+  OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer
@@ -16,14 +16,11 @@ import { User } from "../user/user.entity";
     origin: ["http://localhost:3000"]
   }
 })
-export class AlarmGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class AlarmGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Nest.js에서 WebSockets을 사용할 때, WebSocketGateway 클래스가 필요로 하는 인터페이스들
   // 이 인터페이스를 구현하지 않으면 WebSocketGateway가 올바르게 작동 X
   @WebSocketServer() server: Socket;
   private alarmClients: Set<string> = new Set();
-
-  afterInit() {
-  }
 
   async handleConnection(client: Socket, ...args: any[]) {
     console.log(`= Alarm Client connected: ${client.id}`);
