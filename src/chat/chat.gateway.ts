@@ -9,6 +9,8 @@ import { Server, Socket } from "socket.io";
 import { ChatService } from "./chat.service";
 import { MessageRequestDto } from "./dto/message-request.dto";
 import { MessageResponseDto } from "./dto/message-response.dto";
+import { Type } from "class-transformer";
+import { ChatRoomRequestDto } from "./dto/chat-room-request.dto";
 
 @WebSocketGateway({
   namespace: "chat", // 네임스페이스 설정
@@ -30,7 +32,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Chat Client connected: ${socket.id}`);
 
     if (!this.chatClients.has(socket.id)) {
-      console.log(`new connection started | client: ${socket.id}`)
+      console.log(`new connection started | client: ${socket.id}`);
       this.chatClients.add(socket.id);
     } else {
       // 중복된 연결이면 disconnect
@@ -51,9 +53,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("join/userId")
-  async joinChatRoomByUserIds(client: Socket, payload: number[]) {
+  async joinChatRoomByUserIds(client: Socket, payload: ChatRoomRequestDto) {
     console.log("joinChatRoomByUserIds");
-    const res = await this.chatService.createOrFindChatRoomByUserIds(payload);
+    const userIds = payload.userIds.map(userId => parseInt(userId.toString(), 10));
+
+    const res = await this.chatService.createOrFindChatRoomByUserIds(userIds);
     client.join(`room-${res.chatRoomId}`);
 
     this.server.to(`room-${res.chatRoomId}`).emit("user/join", res);

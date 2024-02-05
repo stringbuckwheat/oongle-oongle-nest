@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { User } from "../../user/user.entity";
 import { Message } from "./message.entity";
+import { UserChatRoom } from "./user-chat-room.entity";
 
 @Entity()
 export class ChatRoom {
@@ -10,13 +11,13 @@ export class ChatRoom {
   @Column()
   name: string;
 
-  @ManyToMany(() => User)
-  @JoinTable()
-  participants: User[];
+  @OneToMany(() => UserChatRoom,
+      userChatRoom => userChatRoom.chatRoom)
+  userChatRoom: UserChatRoom[];
 
   @OneToMany(() => Message, message => message.chatRoom)
   messages: Message[];
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: "timestamp" })
   createdAt: Date;
 }

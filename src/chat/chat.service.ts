@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ChatRoom } from "./entity/chat-room.entity";
-import { LessThan, Repository } from "typeorm";
+import { DataSource, getManager, LessThan, Repository, Transaction } from "typeorm";
 import { Message } from "./entity/message.entity";
 import { UserChatRoom } from "./entity/user-chat-room.entity";
 import { User } from "../user/user.entity";
@@ -9,6 +9,7 @@ import { ChatRoomDto } from "./dto/chat-room.dto";
 import { MessageRequestDto } from "./dto/message-request.dto";
 import { UserMessageRead } from "./entity/user-message-read.entity";
 import { AlarmGateway } from "../alarm/alarm.gateway";
+import { ChatRoomListDto } from "./dto/chat-room-list.dto";
 
 @Injectable()
 export class ChatService {
@@ -23,11 +24,12 @@ export class ChatService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserMessageRead)
     private readonly userMessageReadRepository: Repository<UserMessageRead>,
-    private readonly alarmGateway: AlarmGateway
+    private readonly alarmGateway: AlarmGateway,
+    private dataSource: DataSource
   ) {
   }
 
-  async getAllByUserId(user): Promise<ChatRoom[]> {
+  async getAllByUserId(user): Promise<ChatRoomListDto[]> {
     // 해당 유저가 속한 모든 채팅방 목록
     // 가장 최근 메시지를 포함해서 DESC
     const chatRooms = await this.userChatRoomRepository
@@ -39,7 +41,8 @@ export class ChatService {
       .getMany();
 
     // map vs. flatMap
-    return chatRooms.flatMap((userChatRoom) => userChatRoom.chatRoom);
+    const rooms = chatRooms.flatMap((userChatRoom) => userChatRoom.chatRoom);
+    return rooms.map((room) => new ChatRoomListDto(room));
   }
 
   async getRoomByChatRoomId(chatRoomId: number): Promise<ChatRoomDto> {
@@ -50,13 +53,26 @@ export class ChatService {
       where: {
         chatRoomId
       },
-      relations: ["participants", "messages", "messages.sender"]
+      relations: ["messages", "messages.sender"]
     });
 
     return new ChatRoomDto(chatRoom);
   }
 
   async createOrFindChatRoomByUserIds(userIds: number[]): Promise<ChatRoomDto> {
+    const existingChatRoom = await this.findChatRoomByUserIds(userIds);
+
+    if (existingChatRoom && this.isChatRoomExist(userIds, existingChatRoom.chatRoomId)) {
+      console.log("채팅방 이미 존재");
+      return await this.getRoomByChatRoomId(existingChatRoom.chatRoomId);
+    }
+
+    console.log("채팅방 없음");
+    const savedChatRoom = await this.addChatRoom(userIds);
+    return new ChatRoomDto(savedChatRoom);
+  }
+
+  private async findChatRoomByUserIds(userIds: number[]): Promise<any | null> {
     const existingChatRoom = await this.userChatRoomRepository
       .createQueryBuilder("userChatRoom")
       .innerJoinAndSelect("userChatRoom.chatRoom", "chatRoom")
@@ -65,42 +81,83 @@ export class ChatService {
         , { count: userIds.length, userIds })
       .getOne();
 
-    // 해당 채팅방 이미 존재
-    if (existingChatRoom) {
-      console.log("채팅방 이미 존재");
-      return await this.getRoomByChatRoomId(existingChatRoom.chatRoom.chatRoomId);
-    }
+    console.log("existingChatRoom", existingChatRoom);
 
-    console.log("채팅방 없음");
-
-    // 없으면 create
-    // 해당 유저 찾기
-    const users = await Promise.all(userIds.map(userId => this.userRepository.findOne({ where: { userId } })));
-
-    // chatRoom 제목짓기
-    const name = users.map(user => user.name).join(", ");
-
-    // chatRoom 생성
-    const chatRoom = this.chatRoomRepository.create({ name });
-    const savedChatRoom = await this.chatRoomRepository.save(chatRoom);
-
-    // 채팅방 참가자 추가
-    await Promise.all(
-      users.map((user) => this.addUserToChatRoom(user, savedChatRoom))
-    );
-
-    // 방 정보, 상대 정보 리턴
-    return new ChatRoomDto(savedChatRoom);
+    return existingChatRoom
+      ? { chatRoomId: existingChatRoom.chatRoom.chatRoomId }
+      : null;
   }
 
-  // 채팅방 구성원 추가
-  private async addUserToChatRoom(user: User, chatRoom: ChatRoom): Promise<void> {
-    const userChatRoomEntry = this.userChatRoomRepository.create({
-      user,
-      chatRoom
+  private async isChatRoomExist(userIds: number[], chatRoomId: number): Promise<boolean> {
+    const ucrs = await this.userChatRoomRepository.find({
+      where: {
+        chatRoom: {
+          chatRoomId
+        }
+      },
+      relations: ["user"]
     });
 
-    await this.userChatRoomRepository.save(userChatRoomEntry);
+    const participantsId = ucrs.map((ucr) => ucr.user.userId);
+
+    console.log("participantsId", participantsId);
+    console.log("userIds", userIds);
+
+    return participantsId.every(value => new Set(userIds).has(value));
+  }
+
+  private async addChatRoom(userIds: number[]): Promise<ChatRoom> {
+    // transaction
+    const queryRunner = this.dataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 없으면 create
+      // 해당 유저 찾기
+      const users = await Promise.all(
+        userIds.map(userId => this.userRepository.findOneOrFail({ where: { userId } }))
+      );
+
+      console.log("users", users.length);
+
+      // chatRoom 제목짓기
+      const name = users.map(user => user.name).join(", ");
+
+      // chatRoom 생성
+      const chatRoom = this.chatRoomRepository.create({ name });
+      // const savedChatRoom = await this.chatRoomRepository.save(chatRoom);
+      const savedChatRoom = await queryRunner.manager.save(chatRoom);
+      console.log("chat room 생성 완료");
+
+      // 채팅방 참가자 추가
+      await Promise.all(
+        users.map(async (user) => {
+          const userChatRoom = this.userChatRoomRepository.create({
+            user,
+            chatRoom
+          });
+
+          // await this.userChatRoomRepository.save(userChatRoomEntry);
+          await queryRunner.manager.save(userChatRoom);
+        })
+      );
+
+      console.log("채팅방 참가자 추가 완료");
+
+      await queryRunner.commitTransaction();
+      console.log("commit 완료");
+
+      // 방 정보, 상대 정보 리턴
+      return savedChatRoom;
+    } catch (e) {
+      console.log("error 발생", e);
+      await queryRunner.rollbackTransaction();
+    } finally {
+      console.log("catch 블록");
+      await queryRunner.release();
+    }
   }
 
   async saveMessage(chatMessage: MessageRequestDto): Promise<Message> {
